@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+
+# Environment variables
+.env
+.env.local
+
+# Database
+prisma/*.db
+prisma/*.db-journal
+
+# Uploads & Temp files
+uploads/*
+!uploads/.gitkeep
+temp/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
