@@ -11,7 +11,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "declaration": false,
-    "typeRoots": ["./src/types", "../front-end/node_modules/@types"],
+    "typeRoots": ["./src/types", "./node_modules/@types"],
     "types": ["node"]
   },
   "include": ["src/**/*"],
