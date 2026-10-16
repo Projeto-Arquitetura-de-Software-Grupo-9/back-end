@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { QrCodeController } from '../controllers/QrCodeController';
 import { QrCodeService } from '../services/QrCodeService';
-import { MockQrCodeRepository } from '../repositories/mock/MockQrCodeRepository';
+import { PrismaQrCodeRepository } from '../repositories/prisma/PrismaQrCodeRepository';
 import { IQrCodeRepository } from '../repositories/interfaces/IQrCodeRepository';
 
 export function createQrCodeRouter(repository?: IQrCodeRepository): Router {
-  const repo = repository || new MockQrCodeRepository();
+  const repo = repository || new PrismaQrCodeRepository();
   const service = new QrCodeService(repo);
   const controller = new QrCodeController(service);
 

@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Configurações do Sistema & Parâmetros OMR (/api/v1/settings)
+model Settings {
+  id              String   @id @default(uuid())
+  teacherId       String   @unique @map("id_professor")
+  institutionName String   @map("nome_instituicao")
+  department      String   @map("departamento")
+  professorName   String   @map("nome_professor")
+  professorEmail  String   @map("email_professor")
+  passingGrade    Float    @default(7.0) @map("nota_minima")
+  omrSensitivity  String   @default("Alta (Threshold 0.65)") @map("sensibilidade_omr")
+  omrThreshold    Float    @default(0.65) @map("threshold_omr")
+  autoRotate      Boolean  @default(true) @map("auto_rotacionar")
+  updatedAt       DateTime @updatedAt @map("atualizado_em")
+
+  @@map("configuracoes")
+}
+
+// 2. Alunos (/api/v1/students)
+model Student {
+  id             String   @id @default(uuid())
+  name           String   @map("nome")
+  registration   String   @map("matricula")
+  course         String   @default("Direito") @map("curso")
+  email          String
+  classGroup     String   @default("Turma A") @map("turma")
+  classId        String?  @map("id_turma")
+  discipline     String   @default("Direito Constitucional") @map("disciplina")
+  examsTaken     Int      @default(0) @map("provas_realizadas")
+  overallAverage Float    @default(0.0) @map("media_geral")
+  createdAt      DateTime @default(now()) @map("criado_em")
+
+  @@index([discipline])
+  @@index([registration])
+  @@map("alunos")
+}
+
+// 3. Banco de Questões (/api/v1/questions)
+model Question {
+  id                 String        @id @default(uuid())
+  teacherId          String        @default("usr-prof-1") @map("id_professor")
+  code               String        @map("codigo")
+  type               String        @default("objetiva") @map("tipo")
+  discipline         String        @map("disciplina")
+  difficulty         String        @map("dificuldade")
+  topic              String?       @map("topico")
+  tags               Json          @map("etiquetas")
+  statement          String        @db.Text @map("enunciado")
+  correctAlternative String        @default("A") @db.Char(1) @map("alternativa_correta")
+  points             Float         @default(1.0) @map("pontuacao")
+  maxScore           Float?        @default(1.0) @map("nota_maxima")
+  explanation        String?       @db.Text @map("comentario")
+  createdAt          DateTime      @default(now()) @map("criado_em")
+  deletedAt          DateTime?     @map("excluido_em")
+  alternatives       Alternative[]
+
+  @@index([discipline])
+  @@index([difficulty])
+  @@map("questoes")
+}
+
+model Alternative {
+  id         String   @id @default(uuid())
+  questionId String   @map("id_questao")
+  letter     String   @db.Char(1) @map("letra")
+  text       String   @db.Text @map("texto")
+  isCorrect  Boolean  @default(false) @map("correta")
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("alternativas")
+}
+
+// 4. Provas e Variações de Cadernos (/api/v1/exams)
+model Exam {
+  id             String        @id @default(uuid())
+  code           String        @map("codigo")
+  title          String        @map("titulo")
+  subtitle       String        @default("") @map("subtitulo")
+  institution    String        @map("instituicao")
+  department     String        @map("departamento")
+  course         String        @map("curso")
+  discipline     String        @map("disciplina")
+  classGroup     String        @map("turma")
+  semester       String        @map("semestre")
+  date           String        @map("data_aplicacao")
+  duration       String        @default("2 horas") @map("duracao")
+  instructions   Json          @map("instrucoes")
+  includeBoxNota Boolean       @default(true) @map("incluir_box_nota")
+  variationsJson Json?         @map("variacoes_json")
+  createdAt      DateTime      @default(now()) @map("criado_em")
+  versions       ExamVersion[]
+
+  @@map("provas")
+}
+
+model ExamVersion {
+  id              String   @id @default(uuid())
+  examId          String   @map("id_prova")
+  versionLetter   String   @db.Char(1) @map("letra_versao")
+  questionsLayout Json     @map("layout_questoes")
+  answerKey       Json     @map("gabarito_oficial")
+  qrCodePayload   String   @db.Text @map("payload_qr_code")
+  createdAt       DateTime @default(now()) @map("criado_em")
+  exam            Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, versionLetter])
+  @@map("versoes_prova")
+}
+
+// 5. QR Codes de Identificação (/api/v1/qr-codes)
+model QrCode {
+  id                  String   @id @default(uuid())
+  applicationId       String   @map("id_aplicacao")
+  examVersionId       String   @map("id_versao_prova")
+  versionLetter       String   @db.Char(1) @map("letra_versao")
+  examCode            String   @map("codigo_prova")
+  studentId           String?  @map("id_aluno")
+  studentRegistration String?  @map("matricula_aluno")
+  studentName         String?  @map("nome_aluno")
+  qrCodePayload       String   @db.Text @map("payload_qr_code")
+  publicCode          String   @map("codigo_publico")
+  svgContent          String   @db.LongText @map("conteudo_svg")
+  dataUrl             String   @db.LongText @map("data_url")
+  matrixDimension     Int      @map("dimensao_matriz")
+  checksum            String   @map("checksum")
+  createdAt           DateTime @default(now()) @map("criado_em")
+
+  @@index([applicationId])
+  @@index([examVersionId])
+  @@map("qr_codes")
+}
