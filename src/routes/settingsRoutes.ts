@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { SettingsController } from '../controllers/SettingsController';
 import { ISettingsRepository } from '../repositories/interfaces/ISettingsRepository';
-import { PrismaSettingsRepository } from '../repositories/prisma/PrismaSettingsRepository';
+import { repositories } from '../repositories';
 import { SettingsService } from '../services/SettingsService';
 
 export function createSettingsRouter(repository?: ISettingsRepository): Router {
-  const repo = repository || new PrismaSettingsRepository();
+  const repo = repository || repositories.settings;
   const service = new SettingsService(repo);
   const controller = new SettingsController(service);
 

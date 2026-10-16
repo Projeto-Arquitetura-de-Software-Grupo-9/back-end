@@ -2,13 +2,13 @@ import { Router } from 'express';
 import multer from 'multer';
 import { StudentController } from '../controllers/StudentController';
 import { IStudentRepository } from '../repositories/interfaces/IStudentRepository';
-import { PrismaStudentRepository } from '../repositories/prisma/PrismaStudentRepository';
+import { repositories } from '../repositories';
 import { StudentService } from '../services/StudentService';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export function createStudentRouter(repository?: IStudentRepository): Router {
-  const repo = repository || new PrismaStudentRepository();
+  const repo = repository || repositories.student;
   const service = new StudentService(repo);
   const controller = new StudentController(service);
 

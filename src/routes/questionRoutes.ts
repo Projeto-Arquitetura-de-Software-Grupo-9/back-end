@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { QuestionController } from '../controllers/QuestionController';
 import { IQuestionRepository } from '../repositories/interfaces/IQuestionRepository';
-import { PrismaQuestionRepository } from '../repositories/prisma/PrismaQuestionRepository';
+import { repositories } from '../repositories';
 import { QuestionService } from '../services/QuestionService';
 
 export function createQuestionRouter(repository?: IQuestionRepository): Router {
-  const repo = repository || new PrismaQuestionRepository();
+  const repo = repository || repositories.question;
   const service = new QuestionService(repo);
   const controller = new QuestionController(service);
 
