@@ -40,7 +40,9 @@ export async function checkDatabaseConnection(): Promise<boolean> {
 export async function connectDatabase(): Promise<boolean> {
   try {
     await prisma.$connect();
-    console.log('✅ Connected to MySQL database at 127.0.0.1:3306 (sgp_catolica)');
+    const host = process.env.DB_HOST || 'MySQL';
+    const db = process.env.DB_NAME || 'sgp_catolica';
+    console.log(`✅ Connected to database: ${db} (${host})`);
     return true;
   } catch (err: any) {
     console.error('❌ Failed to connect to MySQL database:', err.message);
@@ -70,7 +72,101 @@ export async function seedDatabaseIfEmpty(): Promise<void> {
       console.log('🌱 Seeded table: configuracoes');
     }
 
-    // 2. Seed Students
+    // 2. Seed Professors
+    const professorCount = await prisma.professor.count();
+    if (professorCount === 0) {
+      await prisma.professor.createMany({
+        data: [
+          {
+            id: 'prof-catolica-01',
+            nomeCompleto: 'Prof. Carlos Eduardo Mendes',
+            email: 'carlos.mendes@catolicasc.edu.br',
+            senhaHash: '$2a$10$abcdefghijklmnopqrstuvwxyz123456',
+          },
+          {
+            id: 'usr-prof-1',
+            nomeCompleto: 'Prof. Dra. Maria Helena Diniz',
+            email: 'prof.helena@catolica.edu.br',
+            senhaHash: '$2a$10$abcdefghijklmnopqrstuvwxyz123456',
+          },
+        ],
+      });
+      console.log('🌱 Seeded table: professores');
+    }
+
+    // 3. Seed Disciplinas
+    const disciplinaCount = await prisma.disciplina.count();
+    if (disciplinaCount === 0) {
+      await prisma.disciplina.createMany({
+        data: [
+          {
+            id: 'disc-1',
+            idProfessor: 'prof-catolica-01',
+            codigo: 'DIR-101',
+            nome: 'Direito Constitucional I',
+            curso: 'Direito',
+          },
+          {
+            id: 'disc-2',
+            idProfessor: 'prof-catolica-01',
+            codigo: 'MAT-201',
+            nome: 'Cálculo Diferencial e Integral I',
+            curso: 'Engenharia de Software',
+          },
+          {
+            id: 'disc-3',
+            idProfessor: 'prof-catolica-01',
+            codigo: 'CC-102',
+            nome: 'Algoritmos e Estruturas de Dados',
+            curso: 'Sistemas de Informação',
+          },
+          {
+            id: 'disc-4',
+            idProfessor: 'prof-catolica-01',
+            codigo: 'DIR-302',
+            nome: 'Sociedades Empresariais e Direito de Reestruturação',
+            curso: 'Direito',
+          },
+        ],
+      });
+      console.log('🌱 Seeded table: disciplinas');
+    }
+
+    // 4. Seed Turmas
+    const turmaCount = await prisma.turma.count();
+    if (turmaCount === 0) {
+      await prisma.turma.createMany({
+        data: [
+          {
+            id: 'class-1',
+            idProfessor: 'prof-catolica-01',
+            idDisciplina: 'disc-1',
+            nome: 'Turma A - Matutino',
+            periodoLetivo: '2026.1',
+            status: 'ativa',
+          },
+          {
+            id: 'class-2',
+            idProfessor: 'prof-catolica-01',
+            idDisciplina: 'disc-1',
+            nome: 'Turma B - Noturno',
+            periodoLetivo: '2026.1',
+            status: 'ativa',
+          },
+          {
+            id: 'class-3',
+            idProfessor: 'prof-catolica-01',
+            idDisciplina: 'disc-2',
+            nome: 'Turma Única - Integral',
+            periodoLetivo: '2026.1',
+            status: 'ativa',
+          },
+        ],
+      });
+      console.log('🌱 Seeded table: turmas');
+    }
+
+    // 5. Seed Students
     const studentCount = await prisma.student.count();
     if (studentCount === 0) {
       const mockStudentRepo = new MockStudentRepository();

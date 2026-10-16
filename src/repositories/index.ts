@@ -36,7 +36,7 @@ import { PrismaQrCodeRepository } from './prisma/PrismaQrCodeRepository';
 
 export type DataSourceType = 'mock' | 'database';
 
-let activeDataSource: DataSourceType = (process.env.DATA_SOURCE as DataSourceType) || 'mock';
+let activeDataSource: DataSourceType = (process.env.DATA_SOURCE as DataSourceType) || 'database';
 
 export function getActiveDataSource(): DataSourceType {
   return activeDataSource;
