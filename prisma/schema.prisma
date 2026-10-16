@@ -1,0 +1,181 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Professor {
+  id           String        @id @default(uuid()) @db.Char(36)
+  nomeCompleto String        @db.VarChar(255)
+  email        String        @unique @db.VarChar(255)
+  senhaHash    String        @db.VarChar(255)
+
+  disciplinas  Disciplina[]
+  turmas       Turma[]
+  questoes     Questao[]
+  provas       Prova[]
+
+  @@map("Professor")
+}
+
+model Disciplina {
+  id          String     @id @default(uuid()) @db.Char(36)
+  idProfessor String     @db.Char(36)
+  codigo      String     @db.VarChar(50)
+  nome        String     @db.VarChar(100)
+  curso       String     @db.VarChar(100)
+
+  professor   Professor  @relation(fields: [idProfessor], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  turmas      Turma[]
+  questoes    Questao[]
+  provas      Prova[]
+
+  @@index([idProfessor], map: "idx_disciplina_professor")
+  @@map("Disciplina")
+}
+
+model Turma {
+  id            String     @id @default(uuid()) @db.Char(36)
+  idProfessor   String     @db.Char(36)
+  idDisciplina  String     @db.Char(36)
+  nome          String     @db.VarChar(100)
+  periodoLetivo String     @db.VarChar(20)
+  status        String     @default("ativa") @db.VarChar(20)
+
+  professor     Professor  @relation(fields: [idProfessor], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  disciplina    Disciplina @relation(fields: [idDisciplina], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  alunos        Aluno[]
+  provas        Prova[]
+
+  @@index([idProfessor], map: "idx_turma_professor")
+  @@index([idDisciplina], map: "idx_turma_disciplina")
+  @@map("Turma")
+}
+
+model Aluno {
+  id        String      @id @default(uuid()) @db.Char(36)
+  idTurma   String      @db.Char(36)
+  nome      String      @db.VarChar(255)
+  matricula String      @db.VarChar(50)
+  email     String      @db.VarChar(255)
+  curso     String      @db.VarChar(100)
+
+  turma     Turma       @relation(fields: [idTurma], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  correcoes Correcao[]
+
+  @@unique([idTurma, matricula], map: "uq_aluno_turma_matricula")
+  @@index([idTurma], map: "idx_aluno_turma")
+  @@index([matricula], map: "idx_aluno_matricula")
+  @@map("Aluno")
+}
+
+model Questao {
+  id           String         @id @default(uuid()) @db.Char(36)
+  idProfessor  String         @db.Char(36)
+  idDisciplina String         @db.Char(36)
+  codigo       String         @db.VarChar(50)
+  tipo         String         @default("objetiva") @db.VarChar(20)
+  dificuldade  String         @default("Médio") @db.VarChar(20)
+  enunciado    String         @db.Text
+  pontuacao    Decimal        @default(1.00) @db.Decimal(4, 2)
+
+  professor    Professor      @relation(fields: [idProfessor], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  disciplina   Disciplina     @relation(fields: [idDisciplina], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  alternativas Alternativa[]
+  provas       ProvaQuestao[]
+
+  @@index([idProfessor], map: "idx_questao_professor")
+  @@index([idDisciplina], map: "idx_questao_disciplina")
+  @@map("Questao")
+}
+
+model Alternativa {
+  id        String   @id @default(uuid()) @db.Char(36)
+  idQuestao String   @db.Char(36)
+  letra     String   @db.Char(1)
+  texto     String   @db.Text
+  correta   Boolean  @default(false)
+
+  questao   Questao  @relation(fields: [idQuestao], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([idQuestao], map: "idx_alternativa_questao")
+  @@map("Alternativa")
+}
+
+model Prova {
+  id                     String         @id @default(uuid()) @db.Char(36)
+  idProfessor            String         @db.Char(36)
+  idTurma                String         @db.Char(36)
+  idDisciplina           String         @db.Char(36)
+  codigo                 String         @db.VarChar(50)
+  titulo                 String         @db.VarChar(150)
+  dataAplicacao          DateTime       @db.Date
+  status                 String         @default("Pendente") @db.VarChar(30)
+  embaralharQuestoes     Boolean        @default(true)
+  embaralharAlternativas Boolean        @default(true)
+  numeroVersoes          Int            @default(4)
+  notaMaxima             Decimal        @default(10.00) @db.Decimal(5, 2)
+
+  professor              Professor      @relation(fields: [idProfessor], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  turma                  Turma          @relation(fields: [idTurma], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  disciplina             Disciplina     @relation(fields: [idDisciplina], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  questoes               ProvaQuestao[]
+  versoes                VersaoProva[]
+
+  @@index([idProfessor], map: "idx_prova_professor")
+  @@index([idTurma], map: "idx_prova_turma")
+  @@index([idDisciplina], map: "idx_prova_disciplina")
+  @@index([status], map: "idx_prova_status")
+  @@map("Prova")
+}
+
+model ProvaQuestao {
+  idProva   String   @db.Char(36)
+  idQuestao String   @db.Char(36)
+  ordem     Int
+
+  prova     Prova    @relation(fields: [idProva], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  questao   Questao  @relation(fields: [idQuestao], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([idProva, idQuestao])
+  @@index([idQuestao], map: "idx_prova_questao_questao")
+  @@map("ProvaQuestao")
+}
+
+model VersaoProva {
+  id              String     @id @default(uuid()) @db.Char(36)
+  idProva         String     @db.Char(36)
+  letraVersao     String     @db.Char(1)
+  layoutQuestoes  Json
+  gabaritoOficial Json
+  payloadQrCode   String     @unique(map: "uq_versao_qrcode") @db.VarChar(255)
+
+  prova           Prova      @relation(fields: [idProva], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  correcoes       Correcao[]
+
+  @@unique([idProva, letraVersao], map: "uq_prova_versao")
+  @@index([idProva], map: "idx_versao_prova")
+  @@map("VersaoProva")
+}
+
+model Correcao {
+  id                   String      @id @default(uuid()) @db.Char(36)
+  idVersaoProva        String      @db.Char(36)
+  idAluno              String?     @db.Char(36)
+  nomeManuscrito       String?     @db.VarChar(150)
+  matriculaManuscrita  String?     @db.VarChar(50)
+  notaTotal            Decimal     @default(0.00) @db.Decimal(5, 2)
+  respostasLidas       Json
+  atribuicaoAutomatica Boolean     @default(false)
+  dataConfirmacao      DateTime    @default(now()) @db.DateTime(0)
+
+  versaoProva          VersaoProva @relation(fields: [idVersaoProva], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  aluno                Aluno?      @relation(fields: [idAluno], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([idVersaoProva], map: "idx_correcao_versao")
+  @@index([idAluno], map: "idx_correcao_aluno")
+  @@map("Correcao")
+}
