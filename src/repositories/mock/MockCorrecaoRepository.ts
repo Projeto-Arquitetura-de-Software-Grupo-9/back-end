@@ -1,5 +1,4 @@
 import { Correcao } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 import { CorrecaoWithRelations, CreateCorrecaoDTO, ICorrecaoRepository } from '../interfaces/ICorrecaoRepository';
 
 export class MockCorrecaoRepository implements ICorrecaoRepository {
@@ -10,21 +9,21 @@ export class MockCorrecaoRepository implements ICorrecaoRepository {
       idAluno: 'std-1',
       nomeManuscrito: 'Lucas Ferreira Lima',
       matriculaManuscrita: '2024.1.001',
-      notaTotal: new Decimal(9.5),
+      notaTotal: 9.5,
       respostasLidas: { '1': 'C', '2': 'B', '3': 'A' },
       atribuicaoAutomatica: true,
       dataConfirmacao: new Date('2026-03-10T14:35:00Z'),
-      aluno: {
+      student: {
         id: 'std-1',
-        nome: 'Lucas Ferreira Lima',
-        matricula: '2024.1.001',
-        curso: 'Direito',
+        name: 'Lucas Ferreira Lima',
+        registration: '2024.1.001',
+        course: 'Direito',
       },
       versaoProva: {
         id: 'ver-a',
-        idProva: 'exam-catolica-01',
-        letraVersao: 'A',
-        payloadQrCode: 'CORREGE|exam-catolica-01|A|HASH123',
+        examId: 'exam-catolica-01',
+        versionLetter: 'A',
+        qrCodePayload: 'CORREGE|exam-catolica-01|A|HASH123',
       },
     },
     {
@@ -33,16 +32,16 @@ export class MockCorrecaoRepository implements ICorrecaoRepository {
       idAluno: null, // Pendente de vinculação manual
       nomeManuscrito: 'Ana Beatriz',
       matriculaManuscrita: '2024.1.???',
-      notaTotal: new Decimal(8.0),
+      notaTotal: 8.0,
       respostasLidas: { '1': 'B', '2': 'C', '3': 'D' },
       atribuicaoAutomatica: false,
       dataConfirmacao: new Date('2026-03-10T14:38:00Z'),
-      aluno: null,
+      student: null,
       versaoProva: {
         id: 'ver-b',
-        idProva: 'exam-catolica-01',
-        letraVersao: 'B',
-        payloadQrCode: 'CORREGE|exam-catolica-01|B|HASH456',
+        examId: 'exam-catolica-01',
+        versionLetter: 'B',
+        qrCodePayload: 'CORREGE|exam-catolica-01|B|HASH456',
       },
     },
   ];
@@ -66,7 +65,7 @@ export class MockCorrecaoRepository implements ICorrecaoRepository {
       idAluno: data.idAluno || null,
       nomeManuscrito: data.nomeManuscrito || null,
       matriculaManuscrita: data.matriculaManuscrita || null,
-      notaTotal: new Decimal(data.notaTotal),
+      notaTotal: Number(data.notaTotal),
       respostasLidas: data.respostasLidas,
       atribuicaoAutomatica: data.atribuicaoAutomatica ?? false,
       dataConfirmacao: new Date(),

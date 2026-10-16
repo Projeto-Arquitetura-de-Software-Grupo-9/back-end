@@ -17,8 +17,7 @@ export class MockTurmaRepository implements ITurmaRepository {
         curso: 'Direito',
       },
       _count: {
-        alunos: 38,
-        provas: 2,
+        students: 38,
       },
     },
     {
@@ -35,8 +34,7 @@ export class MockTurmaRepository implements ITurmaRepository {
         curso: 'Direito',
       },
       _count: {
-        alunos: 34,
-        provas: 2,
+        students: 34,
       },
     },
     {
@@ -53,8 +51,7 @@ export class MockTurmaRepository implements ITurmaRepository {
         curso: 'Engenharia de Software',
       },
       _count: {
-        alunos: 42,
-        provas: 1,
+        students: 42,
       },
     },
   ];
@@ -85,8 +82,7 @@ export class MockTurmaRepository implements ITurmaRepository {
         curso: 'Geral',
       },
       _count: {
-        alunos: 0,
-        provas: 0,
+        students: 0,
       },
     };
     this.turmas.push(item);

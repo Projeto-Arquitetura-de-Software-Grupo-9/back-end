@@ -11,17 +11,17 @@ export interface CreateCorrecaoDTO {
 }
 
 export interface CorrecaoWithRelations extends Correcao {
-  aluno?: {
+  student?: {
     id: string;
-    nome: string;
-    matricula: string;
-    curso: string;
+    name: string;
+    registration: string;
+    course: string;
   } | null;
   versaoProva?: {
     id: string;
-    idProva: string;
-    letraVersao: string;
-    payloadQrCode: string;
+    examId?: string;
+    versionLetter?: string;
+    qrCodePayload?: string;
   };
 }
 

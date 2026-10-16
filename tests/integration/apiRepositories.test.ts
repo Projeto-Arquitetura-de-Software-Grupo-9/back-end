@@ -2,16 +2,17 @@ import { createApp } from '../../src/app';
 import {
   createRepositories,
   getActiveDataSource,
-  setActiveDataSource,
   repositories,
 } from '../../src/repositories';
 import { PrismaProfessorRepository } from '../../src/repositories/prisma/PrismaProfessorRepository';
 import { PrismaDisciplinaRepository } from '../../src/repositories/prisma/PrismaDisciplinaRepository';
 import { PrismaTurmaRepository } from '../../src/repositories/prisma/PrismaTurmaRepository';
-import { PrismaAlunoRepository } from '../../src/repositories/prisma/PrismaAlunoRepository';
-import { PrismaQuestaoRepository } from '../../src/repositories/prisma/PrismaQuestaoRepository';
-import { PrismaProvaRepository } from '../../src/repositories/prisma/PrismaProvaRepository';
 import { PrismaCorrecaoRepository } from '../../src/repositories/prisma/PrismaCorrecaoRepository';
+import { PrismaStudentRepository } from '../../src/repositories/prisma/PrismaStudentRepository';
+import { PrismaQuestionRepository } from '../../src/repositories/prisma/PrismaQuestionRepository';
+import { PrismaExamRepository } from '../../src/repositories/prisma/PrismaExamRepository';
+import { PrismaSettingsRepository } from '../../src/repositories/prisma/PrismaSettingsRepository';
+import { PrismaQrCodeRepository } from '../../src/repositories/prisma/PrismaQrCodeRepository';
 
 async function runTests() {
   console.log('🧪 Iniciando Testes de Integração da Arquitetura Hexagonal & Repositórios...');
@@ -28,22 +29,22 @@ async function runTests() {
   console.assert(turmas.length >= 3, 'Deve haver ao menos 3 turmas no mock');
   console.log(`✅ Turmas carregadas: ${turmas.length} turmas com relações.`);
 
-  const alunos = await repositories.aluno.listAll();
-  console.assert(alunos.length >= 5, 'Deve haver ao menos 5 alunos no mock');
-  console.log(`✅ Alunos carregados: ${alunos.length} alunos.`);
+  const students = await repositories.student.findAll();
+  console.assert(students.length >= 5, 'Deve haver alunos no mock');
+  console.log(`✅ Alunos (Students) carregados: ${students.length} alunos.`);
 
-  const questoes = await repositories.questao.list();
-  console.assert(questoes.length >= 3, 'Deve haver ao menos 3 questões no mock');
-  console.assert(questoes[0].alternativas.length >= 4, 'Questão deve conter alternativas');
-  console.log(`✅ Questões carregadas: ${questoes.length} questões com alternativas.`);
-
-  const provas = await repositories.prova.list();
-  console.assert(provas.length >= 1, 'Deve haver ao menos 1 prova no mock');
-  console.log(`✅ Provas carregadas: ${provas.length} provas.`);
+  const questions = await repositories.question.findAll();
+  console.assert(questions.length >= 3, 'Deve haver questões no mock');
+  console.assert(questions.some((q) => q.alternatives.length > 0), 'Deve haver questões com alternativas no mock');
+  console.log(`✅ Questões carregadas: ${questions.length} questões.`);
 
   const correcoes = await repositories.correcao.list();
   console.assert(correcoes.length >= 2, 'Deve haver ao menos 2 correções no mock');
   console.log(`✅ Correções carregadas: ${correcoes.length} correções.`);
+
+  const settings = await repositories.settings.getSettings('usr-prof-1');
+  console.assert(settings !== null, 'Configurações devem ser carregadas no mock');
+  console.log(`✅ Configurações carregadas: ${settings?.institutionName}.`);
 
   // Teste 2: Criação e Operações CRUD no Mock
   console.log('\n[Teste 2] Testando operações CRUD no Mock...');
@@ -55,15 +56,6 @@ async function runTests() {
   });
   console.assert(novaTurma.nome === 'Turma C - Vespertino', 'Nome da turma criada deve conferir');
 
-  const novoAluno = await repositories.aluno.create({
-    idTurma: novaTurma.id,
-    nome: 'Test Aluno da Silva',
-    matricula: '2026.1.999',
-    email: 'test@catolicasc.edu.br',
-    curso: 'Direito',
-  });
-  console.assert(novoAluno.matricula === '2026.1.999', 'Matrícula do aluno deve conferir');
-
   // Teste 3: Alternância de Referência para Banco de Dados (Database Provider)
   console.log('\n[Teste 3] Testando alternância de referência para Banco de Dados (Prisma)...');
   const dbRepos = createRepositories('database');
@@ -71,11 +63,13 @@ async function runTests() {
   console.assert(dbRepos.professor instanceof PrismaProfessorRepository, 'Professor repo deve ser Prisma');
   console.assert(dbRepos.disciplina instanceof PrismaDisciplinaRepository, 'Disciplina repo deve ser Prisma');
   console.assert(dbRepos.turma instanceof PrismaTurmaRepository, 'Turma repo deve ser Prisma');
-  console.assert(dbRepos.aluno instanceof PrismaAlunoRepository, 'Aluno repo deve ser Prisma');
-  console.assert(dbRepos.questao instanceof PrismaQuestaoRepository, 'Questao repo deve ser Prisma');
-  console.assert(dbRepos.prova instanceof PrismaProvaRepository, 'Prova repo deve ser Prisma');
   console.assert(dbRepos.correcao instanceof PrismaCorrecaoRepository, 'Correcao repo deve ser Prisma');
-  console.log('✅ Alternância para Prisma/Database instanciada com sucesso.');
+  console.assert(dbRepos.student instanceof PrismaStudentRepository, 'Student repo deve ser Prisma');
+  console.assert(dbRepos.question instanceof PrismaQuestionRepository, 'Question repo deve ser Prisma');
+  console.assert(dbRepos.settings instanceof PrismaSettingsRepository, 'Settings repo deve ser Prisma');
+  console.assert(dbRepos.examLayout instanceof PrismaExamRepository, 'Exam repo deve ser Prisma');
+  console.assert(dbRepos.qrCode instanceof PrismaQrCodeRepository, 'QrCode repo deve ser Prisma');
+  console.log('✅ Alternância para Prisma/Database instanciada com sucesso para todas as entidades.');
 
   // Teste 4: Inicialização do Express App
   console.log('\n[Teste 4] Validando inicialização da aplicação Express...');

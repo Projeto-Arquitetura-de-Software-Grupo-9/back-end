@@ -11,7 +11,7 @@ export class PrismaTurmaRepository implements ITurmaRepository {
           select: { id: true, nome: true, codigo: true, curso: true },
         },
         _count: {
-          select: { alunos: true, provas: true },
+          select: { students: true },
         },
       },
       orderBy: { nome: 'asc' },
@@ -26,7 +26,7 @@ export class PrismaTurmaRepository implements ITurmaRepository {
           select: { id: true, nome: true, codigo: true, curso: true },
         },
         _count: {
-          select: { alunos: true, provas: true },
+          select: { students: true },
         },
       },
     });

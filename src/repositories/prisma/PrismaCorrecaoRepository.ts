@@ -10,11 +10,11 @@ export class PrismaCorrecaoRepository implements ICorrecaoRepository {
         idAluno: filter?.idAluno,
       },
       include: {
-        aluno: {
-          select: { id: true, nome: true, matricula: true, curso: true },
+        student: {
+          select: { id: true, name: true, registration: true, course: true },
         },
         versaoProva: {
-          select: { id: true, idProva: true, letraVersao: true, payloadQrCode: true },
+          select: { id: true, examId: true, versionLetter: true, qrCodePayload: true },
         },
       },
       orderBy: { dataConfirmacao: 'desc' },
@@ -25,11 +25,11 @@ export class PrismaCorrecaoRepository implements ICorrecaoRepository {
     return prisma.correcao.findUnique({
       where: { id },
       include: {
-        aluno: {
-          select: { id: true, nome: true, matricula: true, curso: true },
+        student: {
+          select: { id: true, name: true, registration: true, course: true },
         },
         versaoProva: {
-          select: { id: true, idProva: true, letraVersao: true, payloadQrCode: true },
+          select: { id: true, examId: true, versionLetter: true, qrCodePayload: true },
         },
       },
     });

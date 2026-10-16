@@ -23,8 +23,7 @@ export interface TurmaWithRelations extends Turma {
     curso: string;
   };
   _count?: {
-    alunos: number;
-    provas: number;
+    students?: number;
   };
 }
 

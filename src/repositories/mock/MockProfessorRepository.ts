@@ -7,13 +7,15 @@ export class MockProfessorRepository implements IProfessorRepository {
       id: 'prof-catolica-01',
       nomeCompleto: 'Prof. Carlos Eduardo Mendes',
       email: 'carlos.mendes@catolicasc.edu.br',
-      senhaHash: '$2a$10$abcdefghijklmnopqrstuvwxyz123456', // hash simulado
+      senhaHash: '$2a$10$abcdefghijklmnopqrstuvwxyz123456',
+      createdAt: new Date('2024-01-01T00:00:00Z'),
     },
     {
       id: 'usr-prof-1',
       nomeCompleto: 'Prof. Dra. Maria Helena Diniz',
       email: 'prof.helena@catolica.edu.br',
       senhaHash: '$2a$10$abcdefghijklmnopqrstuvwxyz123456',
+      createdAt: new Date('2024-01-01T00:00:00Z'),
     },
   ];
 
@@ -31,6 +33,7 @@ export class MockProfessorRepository implements IProfessorRepository {
       nomeCompleto: data.nomeCompleto,
       email: data.email,
       senhaHash: data.senhaHash,
+      createdAt: new Date(),
     };
     this.professors.push(newProf);
     return newProf;
