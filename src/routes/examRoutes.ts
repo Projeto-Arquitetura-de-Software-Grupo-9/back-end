@@ -3,8 +3,8 @@ import { ExamController } from '../controllers/ExamController';
 import { ExamVariationController } from '../controllers/ExamVariationController';
 import { IExamRepository } from '../repositories/interfaces/IExamRepository';
 import { IExamVariationRepository } from '../repositories/interfaces/IExamVariationRepository';
-import { MockExamRepository } from '../repositories/mock/MockExamRepository';
-import { MockExamVariationRepository } from '../repositories/mock/MockExamVariationRepository';
+import { PrismaExamRepository } from '../repositories/prisma/PrismaExamRepository';
+import { PrismaExamVariationRepository } from '../repositories/prisma/PrismaExamVariationRepository';
 import { ExamPdfService } from '../services/ExamPdfService';
 import { ExamVariationService } from '../services/ExamVariationService';
 
@@ -12,11 +12,11 @@ export function createExamRouter(
   repository?: IExamRepository,
   variationRepository?: IExamVariationRepository
 ): Router {
-  const repo = repository || new MockExamRepository();
+  const repo = repository || new PrismaExamRepository();
   const service = new ExamPdfService(repo);
   const controller = new ExamController(service);
 
-  const varRepo = variationRepository || new MockExamVariationRepository();
+  const varRepo = variationRepository || new PrismaExamVariationRepository();
   const varService = new ExamVariationService(varRepo);
   const varController = new ExamVariationController(varService);
 
