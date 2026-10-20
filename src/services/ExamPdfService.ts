@@ -4,6 +4,7 @@ import { IExamRepository } from '../repositories/interfaces/IExamRepository';
 import {
   ExamLayoutDTO,
   ExamPdfResultDTO,
+  ExamQuestionLayoutDTO,
   ExamVersionLetter,
   GenerateExamPdfRequestDTO,
 } from '../types/examPdf.dto';
@@ -48,8 +49,17 @@ export class ExamPdfService implements IExamPdfService {
         const showQrCode = request.showQrCode ?? true;
         const includeBoxNota = request.includeBoxNota ?? layout.header.includeBoxNota;
         const isDuplex = request.isDuplex ?? false;
-        const needsBlankVerso = isDuplex && layout.pages.length % 2 !== 0;
-        const totalPages = needsBlankVerso ? layout.pages.length + 1 : layout.pages.length;
+        const includeAnswerSheet = request.includeAnswerSheet ?? false;
+
+        const needsBookletBlankVerso = isDuplex && layout.pages.length % 2 !== 0;
+        let totalPages = layout.pages.length;
+        if (includeAnswerSheet) {
+          if (needsBookletBlankVerso) totalPages += 1;
+          totalPages += 1; // Answer sheet
+          if (isDuplex) totalPages += 1; // Answer sheet blank verso
+        } else {
+          if (needsBookletBlankVerso) totalPages += 1;
+        }
 
         // Render Page by Page
         for (let i = 0; i < layout.pages.length; i++) {
@@ -201,11 +211,12 @@ export class ExamPdfService implements IExamPdfService {
         }
 
         // Duplex Compensating Blank Verso Page when odd total pages
-        if (needsBlankVerso) {
+        // 1. Booklet Blank Verso (if question pages count is odd and duplex is active)
+        if (needsBookletBlankVerso) {
           doc.addPage();
           const pageWidth = doc.page.width;
           const pageHeight = doc.page.height;
-          const blankPageNum = totalPages;
+          const blankPageNum = doc.bufferedPageRange().count;
           const leftMargin = 38;
           const rightMargin = 52;
 
@@ -243,7 +254,7 @@ export class ExamPdfService implements IExamPdfService {
 
           doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94a3b8');
           doc.text(
-            `Caderno ${versionLetter} • Verso da Folha Final`,
+            `Caderno ${versionLetter} • Verso do Caderno de Questões`,
             boxX,
             boxY + 95,
             { width: boxW, align: 'center' }
@@ -262,6 +273,186 @@ export class ExamPdfService implements IExamPdfService {
           );
         }
 
+        // 2. Official OMR Answer Sheet Page
+        if (includeAnswerSheet) {
+          doc.addPage();
+          const pageWidth = doc.page.width;
+          const pageHeight = doc.page.height;
+          const ansPageNumber = doc.bufferedPageRange().count;
+          const leftMargin = isDuplex ? 52 : 45;
+          const rightMargin = isDuplex ? 38 : 45;
+          const contentWidth = pageWidth - (leftMargin + rightMargin);
+
+          // OMR Corner alignment markers
+          doc.rect(leftMargin - 15, 30, 8, 8).fillColor('#0f172a').fill();
+          doc.rect(pageWidth - rightMargin + 7, 30, 8, 8).fillColor('#0f172a').fill();
+          doc.rect(leftMargin - 15, pageHeight - 38, 8, 8).fillColor('#0f172a').fill();
+          doc.rect(pageWidth - rightMargin + 7, pageHeight - 38, 8, 8).fillColor('#0f172a').fill();
+
+          // Header
+          doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#0f172a');
+          doc.text(layout.header.institution.toUpperCase(), leftMargin, 38);
+          doc.fontSize(12).text('CARTÃO-RESPOSTA OFICIAL (FOLHA OMR)', leftMargin, 52);
+          doc.font('Helvetica').fontSize(8.5).fillColor('#475569');
+          doc.text(`${layout.header.title}  |  Caderno ${versionLetter}  |  Código: ${layout.header.code}`, leftMargin, 68);
+
+          // QR Code (top right)
+          if (showQrCode) {
+            const qrPayload = JSON.stringify({
+              app: 'CORREGE_OMR',
+              code: layout.header.code,
+              ver: versionLetter,
+              pages: totalPages,
+            });
+            const qrBuffer = await QRCode.toBuffer(qrPayload, {
+              errorCorrectionLevel: 'M',
+              margin: 1,
+              width: 70,
+            });
+            doc.image(qrBuffer, pageWidth - rightMargin - 65, 36, { width: 55, height: 55 });
+          }
+
+          // Student Info Box
+          const boxY = 88;
+          doc.rect(leftMargin, boxY, contentWidth, 36).fillColor('#f8fafc').strokeColor('#cbd5e1').lineWidth(0.75).fillAndStroke();
+          doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#334155');
+          doc.text('ESTUDANTE / NOME:', leftMargin + 8, boxY + 8);
+          doc.font('Helvetica').fontSize(8.5).fillColor('#64748b');
+          doc.text('__________________________________________________________', leftMargin + 115, boxY + 8);
+          doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#334155');
+          doc.text('MATRÍCULA: _____________________', leftMargin + 8, boxY + 22);
+          doc.text(`TURMA: ${layout.header.classGroup}`, leftMargin + 220, boxY + 22);
+          doc.text(`DATA: ${layout.header.date || '____/____/________'}`, leftMargin + 320, boxY + 22);
+
+          // Instructions
+          const instY = 130;
+          doc.rect(leftMargin, instY, contentWidth, 18).fillColor('#f1f5f9').fill();
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a');
+          doc.text('INSTRUÇÃO: Preencha completamente a bolha com caneta preta ou azul: (● CERTO | ✕ ERRADO)', leftMargin + 8, instY + 5);
+
+          // OMR Bubbles Grid
+          const gridY = 158;
+          const allQuestions: ExamQuestionLayoutDTO[] = [];
+          layout.pages.forEach((p) => allQuestions.push(...p.questions));
+          const totalQ = allQuestions.length;
+          const cols = totalQ > 25 ? 3 : 2;
+          const qPerCol = Math.ceil(totalQ / cols);
+          const colWidth = contentWidth / cols;
+
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a');
+          for (let c = 0; c < cols; c++) {
+            const startQ = c * qPerCol;
+            const endQ = Math.min((c + 1) * qPerCol, totalQ);
+            const colX = leftMargin + c * colWidth;
+
+            // Column Header
+            doc.text('Nº     (A)   (B)   (C)   (D)   (E)', colX + 5, gridY);
+            doc.moveTo(colX + 5, gridY + 12).lineTo(colX + colWidth - 15, gridY + 12).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+
+            for (let qIdx = startQ; qIdx < endQ; qIdx++) {
+              const qNum = qIdx + 1;
+              const qStr = qNum < 10 ? `0${qNum}` : `${qNum}`;
+              const rowY = gridY + 18 + (qIdx - startQ) * 18;
+
+              doc.font('Helvetica-Bold').fontSize(8).fillColor('#334155');
+              doc.text(`${qStr}.`, colX + 5, rowY);
+
+              const letters = ['A', 'B', 'C', 'D', 'E'];
+              letters.forEach((l, lIdx) => {
+                const bubbleX = colX + 28 + lIdx * 18;
+                doc.circle(bubbleX + 4, rowY + 4, 5.5).lineWidth(0.75).strokeColor('#0f172a').stroke();
+                doc.font('Helvetica').fontSize(6.5).fillColor('#0f172a');
+                doc.text(l, bubbleX + 1.5, rowY + 1);
+              });
+            }
+          }
+
+          // Timing Track & Bottom Bar
+          const trackY = pageHeight - 48;
+          for (let b = 0; b < 24; b++) {
+            const blockX = leftMargin + 50 + b * 14;
+            if (b % 2 === 0) {
+              doc.rect(blockX, trackY, 9, 6).fillColor('#0f172a').fill();
+            } else {
+              doc.rect(blockX, trackY, 9, 6).fillColor('#e2e8f0').fill();
+            }
+          }
+          doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#0f172a');
+          doc.text('OMR-ALIGN-L1', leftMargin, trackY);
+          doc.text('OMR-ALIGN-R1', pageWidth - rightMargin - 55, trackY);
+
+          // Footer
+          const footerY = pageHeight - 32;
+          doc.moveTo(leftMargin, footerY - 5).lineTo(pageWidth - rightMargin, footerY - 5).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
+          doc.font('Helvetica').fontSize(8).fillColor('#94a3b8');
+          doc.text(`Correge • ${layout.header.code}`, leftMargin, footerY);
+          doc.text(
+            `Página ${ansPageNumber} de ${totalPages} [Cartão-Resposta] — Caderno ${versionLetter}`,
+            pageWidth - rightMargin - 200,
+            footerY,
+            { width: 200, align: 'right' }
+          );
+
+          // 3. Answer Sheet Blank Verso / Rascunho (if duplex)
+          if (isDuplex) {
+            doc.addPage();
+            const versoPageNum = doc.bufferedPageRange().count;
+            const versoLeft = 38;
+            const versoRight = 52;
+
+            doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#64748b');
+            doc.text(
+              `VERSO EM BRANCO / ESPAÇO PARA RASCUNHO — ${layout.header.institution}`,
+              versoLeft,
+              40
+            );
+            doc.moveTo(versoLeft, 52).lineTo(pageWidth - versoRight, 52).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+
+            // Center Callout Box
+            const boxW = 380;
+            const boxH = 120;
+            const cBoxX = (pageWidth - boxW) / 2;
+            const cBoxY = (pageHeight - boxH) / 2 - 20;
+
+            doc.rect(cBoxX, cBoxY, boxW, boxH).fillColor('#f8fafc').strokeColor('#cbd5e1').lineWidth(0.75).fillAndStroke();
+            doc.font('Helvetica-Bold').fontSize(11).fillColor('#0f172a');
+            doc.text(
+              'VERSO EM BRANCO / ESPAÇO PARA RASCUNHO',
+              cBoxX,
+              cBoxY + 24,
+              { width: boxW, align: 'center' }
+            );
+
+            doc.font('Helvetica').fontSize(9).fillColor('#475569');
+            doc.text(
+              'Esta página foi inserida para permitir a impressão frente e verso (duplex) do Cartão-Resposta sem interferir na próxima prova. Pode ser utilizada livremente pelo estudante como folha de rascunho.',
+              cBoxX + 24,
+              cBoxY + 50,
+              { width: boxW - 48, align: 'center', lineGap: 3 }
+            );
+
+            doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94a3b8');
+            doc.text(
+              `Caderno ${versionLetter} • Verso do Cartão-Resposta`,
+              cBoxX,
+              cBoxY + 95,
+              { width: boxW, align: 'center' }
+            );
+
+            // Footer
+            const vFooterY = pageHeight - 35;
+            doc.moveTo(versoLeft, vFooterY - 5).lineTo(pageWidth - versoRight, vFooterY - 5).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
+            doc.font('Helvetica').fontSize(8).fillColor('#94a3b8');
+            doc.text(`Correge • ${layout.header.code}`, versoLeft, vFooterY);
+            doc.text(
+              `Página ${versoPageNum} de ${totalPages} [Verso / Rascunho] — Caderno ${versionLetter}`,
+              pageWidth - versoRight - 200,
+              vFooterY,
+              { width: 200, align: 'right' }
+            );
+          }
+        }
+
         doc.end();
       } catch (error) {
         reject(error);
@@ -274,13 +465,25 @@ export class ExamPdfService implements IExamPdfService {
     const layout = await this.getExamLayout(request.examId, versionLetter);
     const pdfBuffer = await this.generatePdfBuffer(request);
     const isDuplex = request.isDuplex ?? false;
-    const needsBlankVerso = isDuplex && layout.pages.length % 2 !== 0;
-    const totalPages = needsBlankVerso ? layout.pages.length + 1 : layout.pages.length;
+    const includeAnswerSheet = request.includeAnswerSheet ?? false;
+    const needsBookletBlankVerso = isDuplex && layout.pages.length % 2 !== 0;
+
+    let totalPages = layout.pages.length;
+    if (includeAnswerSheet) {
+      if (needsBookletBlankVerso) totalPages += 1;
+      totalPages += 1;
+      if (isDuplex) totalPages += 1;
+    } else {
+      if (needsBookletBlankVerso) totalPages += 1;
+    }
+
+    const duplexSuffix = isDuplex ? '-Duplex' : '';
+    const answerSuffix = includeAnswerSheet ? '-ComGabarito' : '';
 
     return {
       examId: request.examId,
       versionLetter,
-      fileName: `Prova-${layout.header.code.replace(/[^a-zA-Z0-9]/g, '')}-Caderno-${versionLetter}${isDuplex ? '-Duplex' : ''}.pdf`,
+      fileName: `Prova-${layout.header.code.replace(/[^a-zA-Z0-9]/g, '')}-Caderno-${versionLetter}${duplexSuffix}${answerSuffix}.pdf`,
       contentType: 'application/pdf',
       fileSizeBytes: pdfBuffer.length,
       pdfBase64: pdfBuffer.toString('base64'),
