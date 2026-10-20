@@ -212,68 +212,13 @@ export class ExamPdfService implements IExamPdfService {
 
         // Duplex Compensating Blank Verso Page when odd total pages
         // 1. Booklet Blank Verso (if question pages count is odd and duplex is active)
+        // Garante que o caderno de questões finalize sua folha física, de modo que
+        // a folha de respostas NUNCA seja o verso de uma página de questões.
         if (needsBookletBlankVerso) {
           doc.addPage();
-          const pageWidth = doc.page.width;
-          const pageHeight = doc.page.height;
-          const blankPageNum = doc.bufferedPageRange().count;
-          const leftMargin = 38;
-          const rightMargin = 52;
-
-          // Header
-          doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#64748b');
-          doc.text(
-            `COMPENSAÇÃO FRENTE E VERSO (DUPLEX) — ${layout.header.institution}`,
-            leftMargin,
-            40
-          );
-          doc.moveTo(leftMargin, 52).lineTo(pageWidth - rightMargin, 52).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
-
-          // Center Callout Box
-          const boxW = 380;
-          const boxH = 120;
-          const boxX = (pageWidth - boxW) / 2;
-          const boxY = (pageHeight - boxH) / 2 - 20;
-
-          doc.rect(boxX, boxY, boxW, boxH).fillColor('#f8fafc').strokeColor('#cbd5e1').lineWidth(0.75).fillAndStroke();
-          doc.font('Helvetica-Bold').fontSize(11).fillColor('#0f172a');
-          doc.text(
-            'PÁGINA EM BRANCO INTENCIONAL (MODO FRENTE E VERSO)',
-            boxX,
-            boxY + 24,
-            { width: boxW, align: 'center' }
-          );
-
-          doc.font('Helvetica').fontSize(9).fillColor('#475569');
-          doc.text(
-            'Esta página foi inserida para permitir a impressão frente e verso (duplex) deste caderno sem que o conteúdo da próxima avaliação seja impresso no verso desta folha física.',
-            boxX + 24,
-            boxY + 50,
-            { width: boxW - 48, align: 'center', lineGap: 3 }
-          );
-
-          doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94a3b8');
-          doc.text(
-            `Caderno ${versionLetter} • Verso do Caderno de Questões`,
-            boxX,
-            boxY + 95,
-            { width: boxW, align: 'center' }
-          );
-
-          // Footer
-          const footerY = pageHeight - 35;
-          doc.moveTo(leftMargin, footerY - 5).lineTo(pageWidth - rightMargin, footerY - 5).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
-          doc.font('Helvetica').fontSize(8).fillColor('#94a3b8');
-          doc.text(`Correge • ${layout.header.code}`, leftMargin, footerY);
-          doc.text(
-            `Página ${blankPageNum} de ${totalPages} [Verso] — Caderno ${versionLetter}`,
-            pageWidth - rightMargin - 180,
-            footerY,
-            { width: 180, align: 'right' }
-          );
         }
 
-        // 2. Official OMR Answer Sheet Page
+        // 2. Official OMR Answer Sheet Page (sempre em frente de folha física virgem)
         if (includeAnswerSheet) {
           doc.addPage();
           const pageWidth = doc.page.width;
@@ -393,63 +338,10 @@ export class ExamPdfService implements IExamPdfService {
             { width: 200, align: 'right' }
           );
 
-          // 3. Answer Sheet Blank Verso / Rascunho (if duplex)
+          // 3. Verso 100% em branco da Folha de Respostas (para devolução limpa ao professor)
+          // Nenhuma tinta é impressa nesta página; atua apenas como compensador de folha física duplex.
           if (isDuplex) {
             doc.addPage();
-            const versoPageNum = doc.bufferedPageRange().count;
-            const versoLeft = 38;
-            const versoRight = 52;
-
-            doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#64748b');
-            doc.text(
-              `VERSO EM BRANCO / ESPAÇO PARA RASCUNHO — ${layout.header.institution}`,
-              versoLeft,
-              40
-            );
-            doc.moveTo(versoLeft, 52).lineTo(pageWidth - versoRight, 52).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
-
-            // Center Callout Box
-            const boxW = 380;
-            const boxH = 120;
-            const cBoxX = (pageWidth - boxW) / 2;
-            const cBoxY = (pageHeight - boxH) / 2 - 20;
-
-            doc.rect(cBoxX, cBoxY, boxW, boxH).fillColor('#f8fafc').strokeColor('#cbd5e1').lineWidth(0.75).fillAndStroke();
-            doc.font('Helvetica-Bold').fontSize(11).fillColor('#0f172a');
-            doc.text(
-              'VERSO EM BRANCO / ESPAÇO PARA RASCUNHO',
-              cBoxX,
-              cBoxY + 24,
-              { width: boxW, align: 'center' }
-            );
-
-            doc.font('Helvetica').fontSize(9).fillColor('#475569');
-            doc.text(
-              'Esta página foi inserida para permitir a impressão frente e verso (duplex) do Cartão-Resposta sem interferir na próxima prova. Pode ser utilizada livremente pelo estudante como folha de rascunho.',
-              cBoxX + 24,
-              cBoxY + 50,
-              { width: boxW - 48, align: 'center', lineGap: 3 }
-            );
-
-            doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94a3b8');
-            doc.text(
-              `Caderno ${versionLetter} • Verso do Cartão-Resposta`,
-              cBoxX,
-              cBoxY + 95,
-              { width: boxW, align: 'center' }
-            );
-
-            // Footer
-            const vFooterY = pageHeight - 35;
-            doc.moveTo(versoLeft, vFooterY - 5).lineTo(pageWidth - versoRight, vFooterY - 5).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
-            doc.font('Helvetica').fontSize(8).fillColor('#94a3b8');
-            doc.text(`Correge • ${layout.header.code}`, versoLeft, vFooterY);
-            doc.text(
-              `Página ${versoPageNum} de ${totalPages} [Verso / Rascunho] — Caderno ${versionLetter}`,
-              pageWidth - versoRight - 200,
-              vFooterY,
-              { width: 200, align: 'right' }
-            );
           }
         }
 
