@@ -1,5 +1,5 @@
 import { createApp } from './app';
-import { connectDatabase, seedDatabaseIfEmpty } from './config/database';
+import { connectDatabase } from './config/database';
 
 const PORT = process.env.PORT || 3001;
 export const app = createApp();
@@ -10,10 +10,7 @@ async function bootstrap() {
   }
 
   try {
-    const connected = await connectDatabase();
-    if (connected) {
-      await seedDatabaseIfEmpty();
-    }
+    await connectDatabase();
   } catch (err: any) {
     console.warn('⚠️ Database connection deferred/unavailable:', err.message);
   }

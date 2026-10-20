@@ -1,21 +1,20 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
-
-const prisma = new PrismaClient();
+import { prisma, databaseUrl } from '../src/config/database';
 
 async function main() {
   console.log('🔄 Conectando ao TiDB Cloud MySQL...');
   console.log('Host:', process.env.DB_HOST);
   console.log('Database:', process.env.DB_NAME);
-  console.log('DATABASE_URL:', process.env.DATABASE_URL?.replace(/:[^:@]+@/, ':****@'));
+  console.log('DATABASE_URL:', databaseUrl.replace(/:[^:@]+@/, ':****@'));
 
-  const certPathPrisma = path.resolve(__dirname, '../prisma/isrgrootx1.pem');
-  const certExists = fs.existsSync(certPathPrisma);
-  console.log(`🔒 Certificado CA (${certPathPrisma}):`, certExists ? 'Encontrado ✅' : 'Não encontrado ❌');
+  const configuredCa = process.env.CA || process.env.CA_PATH || 'prisma/isrgrootx1.pem';
+  const certPath = path.resolve(process.cwd(), configuredCa);
+  const certExists = fs.existsSync(certPath);
+  console.log(`🔒 Certificado CA (${certPath}):`, certExists ? 'Encontrado ✅' : 'Não encontrado ❌');
 
   const res = await prisma.$queryRaw`SELECT VERSION() as version, DATABASE() as db`;
   console.log('✅ Conexão bem-sucedida ao TiDB Cloud!', res);

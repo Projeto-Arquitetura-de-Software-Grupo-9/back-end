@@ -249,11 +249,6 @@ export class PrismaQuestionRepository implements IQuestionRepository {
         });
       }
     });
-    if (set.size === 0) {
-      set.add('TAG 1');
-      set.add('TAG 2');
-      set.add('TAG 3');
-    }
     return ['Todas', ...Array.from(set)];
   }
 

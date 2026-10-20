@@ -7,11 +7,8 @@ import {
   ExamVersionLetter,
 } from '../../types/examPdf.dto';
 import { IExamRepository } from '../interfaces/IExamRepository';
-import { MockExamRepository } from '../mock/MockExamRepository';
 
 export class PrismaExamRepository implements IExamRepository {
-  private fallbackMock = new MockExamRepository();
-
   async getExamById(id: string): Promise<ExamLayoutDTO | null> {
     return this.getExamLayout(id, 'A');
   }
@@ -19,7 +16,7 @@ export class PrismaExamRepository implements IExamRepository {
   async getExamHeader(id: string): Promise<ExamHeaderDTO | null> {
     const exam = await prisma.exam.findUnique({ where: { id } });
     if (!exam) {
-      return this.fallbackMock.getExamHeader(id);
+      return null;
     }
 
     return {
@@ -65,10 +62,6 @@ export class PrismaExamRepository implements IExamRepository {
       take: 5,
       orderBy: { createdAt: 'asc' },
     });
-
-    if (dbQuestions.length === 0) {
-      return this.fallbackMock.getExamQuestions(id, versionLetter);
-    }
 
     return dbQuestions.map((q, idx) => ({
       id: q.id,
