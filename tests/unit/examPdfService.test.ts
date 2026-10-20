@@ -64,7 +64,33 @@ async function runTests() {
   console.assert(pdfResult.totalPages === 2, 'Total pages must be 2');
   console.log('✅ Test 4 Passed: PDF DTO successfully generated with full metadata.');
 
-  console.log('\n🎉 ALL 4 EXAM PDF & LAYOUT UNIT TESTS PASSED!');
+  // Test 5: Duplex Print Mode & Odd-Page Blank Verso Compensation
+  console.log('\n[Test 5] Validating Duplex Print Generation & Blank Verso Compensation...');
+  const duplexResult = await service.generateExamPdf({
+    examId: 'exam-single-page',
+    versionLetter: 'B',
+    isDuplex: true,
+    showAnswerKey: false,
+    showQrCode: true,
+  });
+
+  console.assert(duplexResult.contentType === 'application/pdf', 'Content type must be application/pdf');
+  console.assert(duplexResult.fileName.includes('-Caderno-B-Duplex.pdf'), 'Filename must indicate Duplex mode');
+  console.assert(
+    duplexResult.totalPages === 2,
+    `Single-page exam in Duplex must be compensated to 2 pages (got ${duplexResult.totalPages})`
+  );
+
+  const duplexBuffer = await service.generatePdfBuffer({
+    examId: 'exam-single-page',
+    versionLetter: 'B',
+    isDuplex: true,
+  });
+  console.assert(Buffer.isBuffer(duplexBuffer), 'Duplex result must be a Node.js Buffer');
+  console.assert(duplexBuffer.subarray(0, 5).toString('ascii') === '%PDF-', 'Buffer must have %PDF- header');
+  console.log('✅ Test 5 Passed: Duplex generation with automatic odd-page verso blank compensation verified.');
+
+  console.log('\n🎉 ALL 5 EXAM PDF & LAYOUT UNIT TESTS PASSED!');
 }
 
 runTests().catch((err) => {

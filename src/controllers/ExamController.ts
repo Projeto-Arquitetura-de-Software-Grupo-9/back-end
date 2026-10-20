@@ -200,6 +200,7 @@ export class ExamController {
       const showAnswerKey = req.query.showAnswerKey === 'true';
       const showQrCode = req.query.showQrCode !== 'false';
       const includeBoxNota = req.query.includeBoxNota !== 'false';
+      const isDuplex = req.query.isDuplex === 'true';
 
       const request: GenerateExamPdfRequestDTO = {
         examId: id,
@@ -207,6 +208,7 @@ export class ExamController {
         showAnswerKey,
         showQrCode,
         includeBoxNota,
+        isDuplex,
       };
 
       const pdfBuffer = await this.examPdfService.generatePdfBuffer(request);

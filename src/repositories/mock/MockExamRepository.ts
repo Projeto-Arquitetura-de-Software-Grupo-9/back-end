@@ -173,26 +173,40 @@ export class MockExamRepository implements IExamRepository {
     const questions = await this.getExamQuestions(id, versionLetter);
 
     // Split questions realistically into A4 pages (e.g. 3 questions on page 1 with header, 2 on page 2)
+    const isSinglePageExam = id === 'exam-single-page' || id.includes('single') || id.includes('odd');
     const page1Questions = questions.slice(0, 3);
     const page2Questions = questions.slice(3);
 
-    const pages: ExamPageDTO[] = [
-      {
-        pageNumber: 1,
-        totalPages: 2,
-        versionLetter,
-        isFirstPage: true,
-        header,
-        questions: page1Questions,
-      },
-      {
-        pageNumber: 2,
-        totalPages: 2,
-        versionLetter,
-        isFirstPage: false,
-        questions: page2Questions,
-      },
-    ];
+    const pages: ExamPageDTO[] = isSinglePageExam
+      ? [
+          {
+            pageNumber: 1,
+            totalPages: 1,
+            versionLetter,
+            isFirstPage: true,
+            header,
+            questions: page1Questions,
+          },
+        ]
+      : [
+          {
+            pageNumber: 1,
+            totalPages: 2,
+            versionLetter,
+            isFirstPage: true,
+            header,
+            questions: page1Questions,
+          },
+          {
+            pageNumber: 2,
+            totalPages: 2,
+            versionLetter,
+            isFirstPage: false,
+            questions: page2Questions,
+          },
+        ];
+
+    const totalPages = pages.length;
 
     const answerKey: Record<number, 'A' | 'B' | 'C' | 'D' | 'E'> = {};
     questions.forEach((q) => {
@@ -219,13 +233,13 @@ export class MockExamRepository implements IExamRepository {
         right: 15,
       },
       header,
-      totalPages: 2,
+      totalPages,
       pages,
       qrCodePayload: JSON.stringify({
         appId: 'CORREGE',
         examCode: header.code,
         ver: versionLetter,
-        pages: 2,
+        pages: totalPages,
       }),
       answerKey,
     };

@@ -79,6 +79,7 @@ export interface GenerateExamPdfRequestDTO {
   showAnswerKey?: boolean;
   showQrCode?: boolean;
   includeBoxNota?: boolean;
+  isDuplex?: boolean;
 }
 
 export interface ExamPdfResultDTO {
