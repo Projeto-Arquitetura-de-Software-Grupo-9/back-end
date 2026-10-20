@@ -18,6 +18,7 @@ export function createStudentRouter(repository?: IStudentRepository): Router {
   router.get('/disciplines', controller.getDisciplines);
   router.get('/export-excel', controller.exportExcel);
   router.post('/import', upload.single('file'), controller.importStudents);
+  router.post('/batch', upload.single('file'), controller.importStudents);
   router.post('/batch-delete', controller.deleteBatch);
   router.delete('/batch', controller.deleteBatch);
   router.get('/:id', controller.getById);

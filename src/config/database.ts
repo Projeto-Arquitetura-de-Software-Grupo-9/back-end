@@ -3,8 +3,65 @@ import dotenv from 'dotenv';
 import { MockStudentRepository } from '../repositories/mock/MockStudentRepository';
 import { MockQuestionRepository } from '../repositories/mock/MockQuestionRepository';
 import { MockQrCodeRepository } from '../repositories/mock/MockQrCodeRepository';
+import { PrismaTiDBHttpAdapterFactory, TiDBHttpConfig } from './tidbHttpAdapter';
 
 dotenv.config();
+
+function parseTiDBConfig(): TiDBHttpConfig | null {
+  let host = process.env.DB_HOST || '';
+  let user = process.env.DB_USER || '';
+  let password = process.env.DB_PASSWORD || '';
+  let database = process.env.DB_NAME || '';
+
+  const rawUrl = process.env.DATABASE_URL || '';
+  if (rawUrl) {
+    try {
+      const parsed = new URL(rawUrl);
+      if (!host) host = parsed.hostname;
+      if (!user) user = decodeURIComponent(parsed.username);
+      if (!password) password = decodeURIComponent(parsed.password);
+      if (!database) database = parsed.pathname.replace(/^\//, '');
+    } catch {
+      // Fallback to DB_* env vars
+    }
+  }
+
+  if (host.includes('tidbcloud.com') && user && password) {
+    return {
+      host,
+      user,
+      password,
+      database: database || 'sgp_catolica',
+    };
+  }
+
+  return null;
+}
+
+function buildDatabaseUrl(): string {
+  const host = process.env.DB_HOST || 'gateway01.ap-northeast-1.prod.aws.tidbcloud.com';
+  const port = process.env.DB_PORT || '4000';
+  const user = process.env.DB_USER || '3SU7yETPYeXcU97.root';
+  const password = process.env.DB_PASSWORD || '';
+  const dbName = process.env.DB_NAME || 'sgp_catolica';
+
+  let url =
+    process.env.DATABASE_URL ||
+    `mysql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${dbName}`;
+
+  const isTiDB = url.includes('tidbcloud.com') || host.includes('tidbcloud.com');
+  if (isTiDB && !url.includes('sslaccept=')) {
+    const separator = url.includes('?') ? '&' : '?';
+    url = `${url}${separator}sslcert=./isrgrootx1.pem&sslaccept=strict`;
+  }
+
+  return url;
+}
+
+export const databaseUrl = buildDatabaseUrl();
+const tidbConfig = parseTiDBConfig();
+const logLevels: ('warn' | 'error')[] =
+  process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'];
 
 declare global {
   // eslint-disable-next-line no-var
@@ -13,16 +70,19 @@ declare global {
 
 export const prisma: PrismaClient =
   global.__prisma ||
-  new PrismaClient({
-    datasources: {
-      db: {
-        url:
-          process.env.DATABASE_URL ||
-          'mysql://root:root@127.0.0.1:3306/sgp_catolica',
-      },
-    },
-    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
-  });
+  (tidbConfig
+    ? new PrismaClient({
+        adapter: new PrismaTiDBHttpAdapterFactory(tidbConfig),
+        log: logLevels,
+      } as any)
+    : new PrismaClient({
+        datasources: {
+          db: {
+            url: databaseUrl,
+          },
+        },
+        log: logLevels,
+      }));
 
 if (process.env.NODE_ENV !== 'production') {
   global.__prisma = prisma;
@@ -40,6 +100,7 @@ export async function checkDatabaseConnection(): Promise<boolean> {
 export async function connectDatabase(): Promise<boolean> {
   try {
     await prisma.$connect();
+    await prisma.$queryRaw`SELECT 1`;
     const host = process.env.DB_HOST || 'MySQL';
     const db = process.env.DB_NAME || 'sgp_catolica';
     console.log(`✅ Connected to database: ${db} (${host})`);

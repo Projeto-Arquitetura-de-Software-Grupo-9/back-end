@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 // Interfaces
 export * from './interfaces/IProfessorRepository';
 export * from './interfaces/IDisciplinaRepository';
