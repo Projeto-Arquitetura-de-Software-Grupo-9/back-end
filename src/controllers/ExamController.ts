@@ -69,7 +69,7 @@ export class ExamController {
           date: body.date || new Date().toLocaleDateString('pt-BR'),
           duration: body.duration || '2 horas',
           instructions,
-          includeBoxNota: body.includeBoxNota ?? true,
+          includeBoxNota: body.includeBoxNota ?? false,
           variationsJson: body.variationsJson ?? undefined,
         },
         include: { versions: true },
@@ -176,7 +176,7 @@ export class ExamController {
         versionLetter: (versionLetter as ExamVersionLetter) || 'A',
         showAnswerKey: Boolean(showAnswerKey),
         showQrCode: showQrCode !== undefined ? Boolean(showQrCode) : true,
-        includeBoxNota: includeBoxNota !== undefined ? Boolean(includeBoxNota) : true,
+        includeBoxNota: includeBoxNota !== undefined ? Boolean(includeBoxNota) : false,
       };
 
       const result = await this.examPdfService.generateExamPdf(request);
