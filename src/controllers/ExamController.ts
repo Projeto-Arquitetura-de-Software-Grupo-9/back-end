@@ -199,8 +199,8 @@ export class ExamController {
       const versionLetter = (req.query.versionLetter as ExamVersionLetter) || 'A';
       const showAnswerKey = req.query.showAnswerKey === 'true';
       const showQrCode = req.query.showQrCode !== 'false';
-      const includeBoxNota = req.query.includeBoxNota !== 'false';
-      const isDuplex = req.query.isDuplex === 'true';
+      const includeBoxNota = req.query.includeBoxNota === 'true';
+      const isDuplex = req.query.isDuplex !== 'false';
       const includeAnswerSheet = req.query.includeAnswerSheet !== 'false';
 
       const request: GenerateExamPdfRequestDTO = {

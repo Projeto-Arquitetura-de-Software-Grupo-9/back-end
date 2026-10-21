@@ -3,7 +3,7 @@
  * Clean Architecture - Decoupled from DB entities
  */
 
-export type ExamVersionLetter = 'A' | 'B' | 'C' | 'D';
+export type ExamVersionLetter = string;
 
 export interface ExamAlternativeDTO {
   id: string;
