@@ -64,7 +64,63 @@ async function runTests() {
   console.assert(pdfResult.totalPages === 2, 'Total pages must be 2');
   console.log('✅ Test 4 Passed: PDF DTO successfully generated with full metadata.');
 
-  console.log('\n🎉 ALL 4 EXAM PDF & LAYOUT UNIT TESTS PASSED!');
+  // Test 5: Duplex Print Mode & Odd-Page Blank Verso Compensation
+  console.log('\n[Test 5] Validating Duplex Print Generation & Blank Verso Compensation...');
+  const duplexResult = await service.generateExamPdf({
+    examId: 'exam-single-page',
+    versionLetter: 'B',
+    isDuplex: true,
+    showAnswerKey: false,
+    showQrCode: true,
+  });
+
+  console.assert(duplexResult.contentType === 'application/pdf', 'Content type must be application/pdf');
+  console.assert(duplexResult.fileName.includes('-Caderno-B-Duplex.pdf'), 'Filename must indicate Duplex mode');
+  console.assert(
+    duplexResult.totalPages === 2,
+    `Single-page exam in Duplex must be compensated to 2 pages (got ${duplexResult.totalPages})`
+  );
+
+  const duplexBuffer = await service.generatePdfBuffer({
+    examId: 'exam-single-page',
+    versionLetter: 'B',
+    isDuplex: true,
+  });
+  console.assert(Buffer.isBuffer(duplexBuffer), 'Duplex result must be a Node.js Buffer');
+  console.assert(duplexBuffer.subarray(0, 5).toString('ascii') === '%PDF-', 'Buffer must have %PDF- header');
+  console.log('✅ Test 5 Passed: Duplex generation with automatic odd-page verso blank compensation verified.');
+
+  // Test 6: Duplex Mode with Integrated OMR Answer Sheet & Strict Physical Sheet Boundaries
+  console.log('\n[Test 6] Validating Duplex Exam Generation with Attached OMR Answer Sheet...');
+  const examWithOmrResult = await service.generateExamPdf({
+    examId: 'exam-catolica-01',
+    versionLetter: 'A',
+    isDuplex: true,
+    includeAnswerSheet: true,
+  });
+
+  console.assert(examWithOmrResult.contentType === 'application/pdf', 'Content type must be application/pdf');
+  console.assert(
+    examWithOmrResult.fileName.includes('-Caderno-A-Duplex-ComGabarito.pdf'),
+    `Filename must contain -Duplex-ComGabarito (got ${examWithOmrResult.fileName})`
+  );
+  // 2 question pages + 1 OMR answer sheet + 1 answer sheet blank verso/draft = 4 total pages
+  console.assert(
+    examWithOmrResult.totalPages === 4,
+    `2-page exam with OMR answer sheet in duplex must have 4 total pages (got ${examWithOmrResult.totalPages})`
+  );
+
+  const omrPdfBuffer = await service.generatePdfBuffer({
+    examId: 'exam-catolica-01',
+    versionLetter: 'A',
+    isDuplex: true,
+    includeAnswerSheet: true,
+  });
+  console.assert(Buffer.isBuffer(omrPdfBuffer), 'Result must be a Buffer');
+  console.assert(omrPdfBuffer.length > 8000, `Buffer must be substantial (${omrPdfBuffer.length} bytes)`);
+  console.log('✅ Test 6 Passed: Duplex print pack with attached OMR answer sheet verified (4 pages, strictly isolated sheets).');
+
+  console.log('\n🎉 ALL 6 EXAM PDF & LAYOUT UNIT TESTS PASSED!');
 }
 
 runTests().catch((err) => {
