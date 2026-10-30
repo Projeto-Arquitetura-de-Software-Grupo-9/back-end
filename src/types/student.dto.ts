@@ -52,8 +52,17 @@ export interface ImportStudentsRequestDTO {
   students: CreateStudentRequestDTO[];
 }
 
+export interface ImportRowErrorDTO {
+  /** Número da linha na planilha (ou posição na lista JSON, começando em 1) */
+  row: number;
+  registration?: string;
+  reason: string;
+}
+
 export interface ImportStudentsResultDTO {
   importedCount: number;
+  skippedCount: number;
   totalStudents: number;
   students: StudentDTO[];
+  errors: ImportRowErrorDTO[];
 }
