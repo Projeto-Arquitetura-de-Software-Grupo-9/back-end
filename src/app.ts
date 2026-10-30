@@ -12,6 +12,7 @@ import { createTurmaRouter } from './routes/turmaRoutes';
 import { createCorrecaoRouter } from './routes/correcaoRoutes';
 import { createReportRouter } from './routes/reportRoutes';
 import { createAnswerSheetRouter } from './routes/answerSheetRoutes';
+import { createExamExportRouter } from './routes/examExportRoutes';
 
 export function createApp() {
   const app = express();
@@ -54,6 +55,7 @@ export function createApp() {
   app.use('/api/v1/correcoes', createCorrecaoRouter());
   app.use('/api/v1/reports', createReportRouter());
   app.use('/api/v1/answer-sheets', createAnswerSheetRouter());
+  app.use('/api/v1/exam-exports', createExamExportRouter());
   app.use('/api/v1/qr-codes', createQrCodeRouter());
 
   return app;

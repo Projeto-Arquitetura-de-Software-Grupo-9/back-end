@@ -6,6 +6,11 @@ import { buildReport, exportReport, ReportInput } from '../src/services/ReportSe
 import { answerSheetSchema, generateAnswerSheets } from '../src/services/AnswerSheetPdfService';
 import { createReportRouter } from '../src/routes/reportRoutes';
 import { createAnswerSheetRouter } from '../src/routes/answerSheetRoutes';
+import { createApp } from '../src/app';
+import { setActiveDataSource, getActiveDataSource } from '../src/repositories';
+import { ExamPdfService } from '../src/services/ExamPdfService';
+import { MockExamRepository } from '../src/repositories/mock/MockExamRepository';
+import { createExamExportRouter } from '../src/routes/examExportRoutes';
 
 const correction = (id: string, student: string | null, score: number, answers: Record<string, string>, date = '2026-10-28') => ({
   id, idAluno: student, nomeManuscrito: null, matriculaManuscrita: null, notaTotal: score,
@@ -81,5 +86,71 @@ test('HTTP report/download routes return real files and meaningful missing-data 
     const pdf = await fetch(`${base}/answer-sheets/pdf`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sheet(20)) });
     assert.equal(pdf.status, 200); assert.match(pdf.headers.get('content-type')!, /application\/pdf/);
     assert.equal((await fetch(`${base}/answer-sheets/pdf`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 400);
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test('current exam PDFs have the declared physical page count after the team footer fix', async () => {
+  const service = new ExamPdfService(new MockExamRepository());
+  for (const options of [
+    { includeAnswerSheet: false, isDuplex: false },
+    { includeAnswerSheet: true, isDuplex: false },
+    { includeAnswerSheet: true, isDuplex: true },
+    { answerSheetOnly: true, isDuplex: false },
+  ]) {
+    const result = await service.generateExamPdf({ examId: 'exam-catolica-01', versionLetter: 'A', ...options });
+    const buffer = Buffer.from(result.pdfBase64, 'base64');
+    assert.equal((buffer.toString('latin1').match(/\/Type \/Page\b/g) || []).length, result.totalPages);
+  }
+});
+
+test('mixed-version nominal PDF batch preserves per-sheet versions and clean duplex backs', async () => {
+  const first = { ...sheet(3), versionLetter: 'A', student: { name: 'Aluno A', registration: '001' } };
+  const last = { ...sheet(100), versionLetter: 'Z', qrCodePayload: 'version-Z', student: { name: 'Aluno Z', registration: '002' } };
+  const payload = answerSheetSchema.parse({ ...sheet(3), sheets: [first, last], isDuplex: true });
+  const pdf = await generateAnswerSheets(payload);
+  assert.equal((pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length, 4);
+  assert.equal(answerSheetSchema.safeParse({ ...sheet(1), versionLetter: 'AA' }).success, false);
+});
+
+test('assembled application serves demonstration reports and Excel without database or camera', async () => {
+  const previous = getActiveDataSource();
+  setActiveDataSource('mock');
+  const server = createApp().listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const address = server.address() as { port: number };
+  const base = `http://127.0.0.1:${address.port}/api/v1/reports`;
+  try {
+    const list = await (await fetch(base)).json();
+    assert.equal(list.dataSource, 'mock'); assert.ok(list.data.length);
+    const response = await fetch(`${base}/${list.data[0].id}/results`);
+    assert.equal(response.status, 200);
+    const report = (await response.json()).data;
+    assert.equal(report.dataSource, 'mock'); assert.ok(report.versions.length);
+    const file = await fetch(`${base}/${list.data[0].id}/results?format=xlsx`);
+    assert.equal(file.status, 200);
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await file.arrayBuffer()) as never);
+    assert.match(String(book.getWorksheet('Resumo')!.getCell('B10').value), /DEMONSTRAÇÃO/);
+  } finally {
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    setActiveDataSource(previous);
+  }
+});
+
+test('preview PDF exports a locally supplied exam without persistence', async () => {
+  const app = express(); app.use(express.json()); app.use('/export', createExamExportRouter());
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise<void>(resolve => server.once('listening', resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/export/pdf`;
+  const layout = await new MockExamRepository().getExamLayout('exam-catolica-01', 'A');
+  try {
+    const response = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      examId: 'local-not-saved', versionLetter: 'Z', header: layout!.header, pages: layout!.pages.map(p => ({ questions: p.questions })),
+      isDuplex: false, includeAnswerSheet: true,
+    }) });
+    assert.equal(response.status, 200);
+    const pdf = Buffer.from(await response.arrayBuffer());
+    assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+    assert.equal((pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length, 3);
+    assert.equal((await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 400);
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });

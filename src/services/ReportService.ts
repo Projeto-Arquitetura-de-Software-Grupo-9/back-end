@@ -88,7 +88,7 @@ export function buildReport(exam: ReportInput) {
 
 export type ExamResultsReport = ReturnType<typeof buildReport>;
 
-export async function exportReport(report: ExamResultsReport) {
+export async function exportReport(report: ExamResultsReport, dataSource: 'database' | 'mock' = 'database') {
   const book = new ExcelJS.Workbook();
   const summary = book.addWorksheet('Resumo');
   summary.addRows([['Prova', report.title], ['Alunos identificados', report.metrics.count],
@@ -96,6 +96,7 @@ export async function exportReport(report: ExamResultsReport) {
     ['Mediana', report.metrics.median], ['Desvio padrão populacional', report.metrics.standardDeviation],
     ['Maior nota', report.metrics.highest], ['Menor nota', report.metrics.lowest],
     ['Critério', 'Última correção por aluno; notas confirmadas pelo módulo de correção. Pendentes fora das estatísticas.']]);
+  summary.addRow(['Origem', dataSource === 'mock' ? 'DEMONSTRAÇÃO — dados fictícios em memória' : 'Banco de dados']);
   report.versions.forEach((v, index) => {
     const sheet = book.addWorksheet(`Caderno ${index + 1}`);
     sheet.addRow([`Caderno ${v.letter}`]);
