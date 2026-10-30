@@ -47,8 +47,8 @@ export class ExamPdfService implements IExamPdfService {
 
         const showAnswerKey = request.showAnswerKey ?? false;
         const showQrCode = request.showQrCode ?? true;
-        const includeBoxNota = request.includeBoxNota ?? layout.header.includeBoxNota;
-        const isDuplex = request.isDuplex ?? false;
+        const includeBoxNota = request.includeBoxNota ?? false;
+        const isDuplex = request.isDuplex ?? true;
         const includeAnswerSheet = request.includeAnswerSheet ?? false;
 
         const needsBookletBlankVerso = isDuplex && layout.pages.length % 2 !== 0;
@@ -196,7 +196,9 @@ export class ExamPdfService implements IExamPdfService {
             doc.y += 12;
           }
 
-          // Footer
+          // Footer (margem inferior zerada só aqui: evita que o PDFKit crie páginas em branco)
+          const prevBottomMargin = doc.page.margins.bottom;
+          doc.page.margins.bottom = 0;
           const footerY = doc.page.height - 35;
           doc.moveTo(leftMargin, footerY - 5).lineTo(pageWidth - rightMargin, footerY - 5).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
           doc.font('Helvetica').fontSize(8).fillColor('#94a3b8');
@@ -208,6 +210,7 @@ export class ExamPdfService implements IExamPdfService {
             footerY,
             { width: 180, align: 'right' }
           );
+          doc.page.margins.bottom = prevBottomMargin;
         }
 
         // Duplex Compensating Blank Verso Page when odd total pages
@@ -221,6 +224,7 @@ export class ExamPdfService implements IExamPdfService {
         // 2. Official OMR Answer Sheet Page (sempre em frente de folha física virgem)
         if (includeAnswerSheet) {
           doc.addPage();
+          doc.page.margins.bottom = 0; // sem quebra automática: rodapé e trilha OMR ficam na mesma página
           const pageWidth = doc.page.width;
           const pageHeight = doc.page.height;
           const ansPageNumber = doc.bufferedPageRange().count;
@@ -254,8 +258,19 @@ export class ExamPdfService implements IExamPdfService {
               margin: 1,
               width: 70,
             });
-            doc.image(qrBuffer, pageWidth - rightMargin - 65, 36, { width: 55, height: 55 });
+            doc.image(qrBuffer, pageWidth - rightMargin - 65, 30, { width: 54, height: 54 });
           }
+
+          // Bolhas de versão do caderno (A–D): o aluno marca o caderno que recebeu
+          const verBoxX = pageWidth - rightMargin - 65 - 135;
+          doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#0f172a');
+          doc.text('CADERNO (marque o seu):', verBoxX, 38, { lineBreak: false });
+          (['A', 'B', 'C', 'D'] as const).forEach((l, i) => {
+            const bx = verBoxX + 6 + i * 30;
+            doc.circle(bx + 5, 56, 6).lineWidth(0.75).strokeColor('#0f172a').stroke();
+            doc.font('Helvetica').fontSize(7).fillColor('#0f172a');
+            doc.text(l, bx + 2.5, 53.5, { lineBreak: false });
+          });
 
           // Student Info Box
           const boxY = 88;
@@ -273,7 +288,7 @@ export class ExamPdfService implements IExamPdfService {
           const instY = 130;
           doc.rect(leftMargin, instY, contentWidth, 18).fillColor('#f1f5f9').fill();
           doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a');
-          doc.text('INSTRUÇÃO: Preencha completamente a bolha com caneta preta ou azul: (● CERTO | ✕ ERRADO)', leftMargin + 8, instY + 5);
+          doc.text('INSTRUÇÃO: Preencha totalmente a bolha com caneta preta ou azul. Marcas parciais ou rasuras = ERRADO.', leftMargin + 8, instY + 5);
 
           // OMR Bubbles Grid
           const gridY = 158;
@@ -315,7 +330,7 @@ export class ExamPdfService implements IExamPdfService {
           // Timing Track & Bottom Bar
           const trackY = pageHeight - 48;
           for (let b = 0; b < 24; b++) {
-            const blockX = leftMargin + 50 + b * 14;
+            const blockX = leftMargin + 85 + b * 14;
             if (b % 2 === 0) {
               doc.rect(blockX, trackY, 9, 6).fillColor('#0f172a').fill();
             } else {
@@ -323,8 +338,8 @@ export class ExamPdfService implements IExamPdfService {
             }
           }
           doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#0f172a');
-          doc.text('OMR-ALIGN-L1', leftMargin, trackY);
-          doc.text('OMR-ALIGN-R1', pageWidth - rightMargin - 55, trackY);
+          doc.text('OMR-ALIGN-L1', leftMargin, trackY, { lineBreak: false });
+          doc.text('OMR-ALIGN-R1', pageWidth - rightMargin - 70, trackY, { lineBreak: false });
 
           // Footer
           const footerY = pageHeight - 32;

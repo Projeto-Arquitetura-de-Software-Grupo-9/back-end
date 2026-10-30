@@ -1,5 +1,5 @@
 import { Correcao } from '@prisma/client';
-import { CorrecaoWithRelations, CreateCorrecaoDTO, ICorrecaoRepository } from '../interfaces/ICorrecaoRepository';
+import { CorrecaoWithRelations, CreateCorrecaoDTO, ExamVersionRefDTO, ICorrecaoRepository } from '../interfaces/ICorrecaoRepository';
 
 export class MockCorrecaoRepository implements ICorrecaoRepository {
   private correcoes: CorrecaoWithRelations[] = [
@@ -12,6 +12,7 @@ export class MockCorrecaoRepository implements ICorrecaoRepository {
       notaTotal: 9.5,
       respostasLidas: { '1': 'C', '2': 'B', '3': 'A' },
       atribuicaoAutomatica: true,
+      versaoMarcada: 'A',
       dataConfirmacao: new Date('2026-03-10T14:35:00Z'),
       student: {
         id: 'std-1',
@@ -35,6 +36,7 @@ export class MockCorrecaoRepository implements ICorrecaoRepository {
       notaTotal: 8.0,
       respostasLidas: { '1': 'B', '2': 'C', '3': 'D' },
       atribuicaoAutomatica: false,
+      versaoMarcada: 'B',
       dataConfirmacao: new Date('2026-03-10T14:38:00Z'),
       student: null,
       versaoProva: {
@@ -68,10 +70,19 @@ export class MockCorrecaoRepository implements ICorrecaoRepository {
       notaTotal: Number(data.notaTotal),
       respostasLidas: data.respostasLidas,
       atribuicaoAutomatica: data.atribuicaoAutomatica ?? false,
+      versaoMarcada: data.versaoMarcada ?? null,
       dataConfirmacao: new Date(),
     };
     this.correcoes.push(item);
     return item;
+  }
+
+  async findVersao(examId: string, versionLetter: string): Promise<ExamVersionRefDTO | null> {
+    const found = this.correcoes.find(
+      (c) => c.versaoProva?.examId === examId && c.versaoProva?.versionLetter === versionLetter
+    );
+    if (!found?.versaoProva) return null;
+    return { id: found.versaoProva.id, examId, versionLetter };
   }
 
   async assignStudent(id: string, idAluno: string): Promise<Correcao> {
