@@ -15,6 +15,7 @@ export interface IStudentService {
   deleteStudentsBatch(ids: string[]): Promise<{ deletedCount: number }>;
   importStudents(students: CreateStudentRequestDTO[]): Promise<ImportStudentsResultDTO>;
   importStudentsFromExcelBuffer(buffer: Buffer): Promise<ImportStudentsResultDTO>;
+  buildImportTemplateBuffer(): Promise<Buffer>;
   exportStudentsToExcelBuffer(filters?: StudentFilterDTO): Promise<Buffer>;
   getDisciplines(): Promise<string[]>;
 }
