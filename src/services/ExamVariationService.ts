@@ -24,8 +24,11 @@ export class ExamVariationService implements IExamVariationService {
       students = [],
     } = request;
 
-    const clampedVersions = Math.min(Math.max(1, numberOfVersions), 4);
-    const versionLetters: ExamVersionLetter[] = (['A', 'B', 'C', 'D'] as const).slice(0, clampedVersions);
+    const clampedVersions = Math.min(Math.max(1, numberOfVersions), 26);
+    const versionLetters: ExamVersionLetter[] = Array.from(
+      { length: clampedVersions },
+      (_, idx) => String.fromCharCode(65 + idx)
+    );
 
     const baseQuestions = await this.variationRepo.getBaseQuestions(examId);
     if (!baseQuestions || baseQuestions.length === 0) {
@@ -102,16 +105,11 @@ export class ExamVariationService implements IExamVariationService {
       return entry;
     });
 
-    // 5. Assign students round-robin among versions
-    const studentAssignments: StudentAssignmentDTO[] = students.map((std, idx) => {
-      const assignedVersion = versionLetters[idx % versionLetters.length];
-      return {
-        studentId: std.id,
-        studentName: std.name,
-        registration: std.registration,
-        assignedVersion,
-      };
-    });
+    // 5. Assign students randomly (Fisher-Yates balanced pool) among versions
+    const studentAssignments: StudentAssignmentDTO[] = this.assignStudentsRandomly(
+      students,
+      versionLetters
+    );
 
     const result: ExamVariationResultDTO = {
       examId,
@@ -139,11 +137,32 @@ export class ExamVariationService implements IExamVariationService {
       ? existing.versions.map((v) => v.versionLetter)
       : ['A', 'B', 'C', 'D'];
 
+    return this.assignStudentsRandomly(students, versionLetters);
+  }
+
+  /**
+   * Distributes students randomly across available versions using Fisher-Yates shuffle
+   * so that call-list order does not predictably map to Caderno A, B, C...
+   */
+  private assignStudentsRandomly(
+    students: { id: string; name: string; registration: string }[],
+    versionLetters: ExamVersionLetter[]
+  ): StudentAssignmentDTO[] {
+    if (students.length === 0) return [];
+    const pool: ExamVersionLetter[] = [];
+    while (pool.length < students.length) {
+      pool.push(...versionLetters);
+    }
+    const trimmedPool = pool.slice(0, students.length);
+    for (let i = trimmedPool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [trimmedPool[i], trimmedPool[j]] = [trimmedPool[j], trimmedPool[i]];
+    }
     return students.map((std, idx) => ({
       studentId: std.id,
       studentName: std.name,
       registration: std.registration,
-      assignedVersion: versionLetters[idx % versionLetters.length],
+      assignedVersion: trimmedPool[idx] || 'A',
     }));
   }
 

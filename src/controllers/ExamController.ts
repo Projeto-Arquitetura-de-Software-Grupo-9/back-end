@@ -69,7 +69,7 @@ export class ExamController {
           date: body.date || new Date().toLocaleDateString('pt-BR'),
           duration: body.duration || '2 horas',
           instructions,
-          includeBoxNota: body.includeBoxNota ?? true,
+          includeBoxNota: body.includeBoxNota ?? false,
           variationsJson: body.variationsJson ?? undefined,
         },
         include: { versions: true },
@@ -176,7 +176,7 @@ export class ExamController {
         versionLetter: (versionLetter as ExamVersionLetter) || 'A',
         showAnswerKey: Boolean(showAnswerKey),
         showQrCode: showQrCode !== undefined ? Boolean(showQrCode) : true,
-        includeBoxNota: includeBoxNota !== undefined ? Boolean(includeBoxNota) : true,
+        includeBoxNota: includeBoxNota !== undefined ? Boolean(includeBoxNota) : false,
       };
 
       const result = await this.examPdfService.generateExamPdf(request);
@@ -199,8 +199,8 @@ export class ExamController {
       const versionLetter = (req.query.versionLetter as ExamVersionLetter) || 'A';
       const showAnswerKey = req.query.showAnswerKey === 'true';
       const showQrCode = req.query.showQrCode !== 'false';
-      const includeBoxNota = req.query.includeBoxNota !== 'false';
-      const isDuplex = req.query.isDuplex === 'true';
+      const includeBoxNota = req.query.includeBoxNota === 'true';
+      const isDuplex = req.query.isDuplex !== 'false';
       const includeAnswerSheet = req.query.includeAnswerSheet !== 'false';
 
       const request: GenerateExamPdfRequestDTO = {

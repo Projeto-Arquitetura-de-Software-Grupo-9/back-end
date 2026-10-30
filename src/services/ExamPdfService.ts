@@ -47,8 +47,8 @@ export class ExamPdfService implements IExamPdfService {
 
         const showAnswerKey = request.showAnswerKey ?? false;
         const showQrCode = request.showQrCode ?? true;
-        const includeBoxNota = request.includeBoxNota ?? layout.header.includeBoxNota;
-        const isDuplex = request.isDuplex ?? false;
+        const includeBoxNota = request.includeBoxNota ?? false;
+        const isDuplex = request.isDuplex ?? true;
         const includeAnswerSheet = request.includeAnswerSheet ?? false;
 
         const needsBookletBlankVerso = isDuplex && layout.pages.length % 2 !== 0;
