@@ -1,6 +1,6 @@
 import { Correcao } from '@prisma/client';
 import { prisma } from '../../config/database';
-import { CorrecaoWithRelations, CreateCorrecaoDTO, ICorrecaoRepository } from '../interfaces/ICorrecaoRepository';
+import { CorrecaoWithRelations, CreateCorrecaoDTO, ExamVersionRefDTO, ICorrecaoRepository } from '../interfaces/ICorrecaoRepository';
 
 export class PrismaCorrecaoRepository implements ICorrecaoRepository {
   async list(filter?: { idVersaoProva?: string; idAluno?: string }): Promise<CorrecaoWithRelations[]> {
@@ -45,8 +45,17 @@ export class PrismaCorrecaoRepository implements ICorrecaoRepository {
         notaTotal: data.notaTotal,
         respostasLidas: data.respostasLidas,
         atribuicaoAutomatica: data.atribuicaoAutomatica ?? false,
+        versaoMarcada: data.versaoMarcada ?? null,
       },
     });
+  }
+
+  async findVersao(examId: string, versionLetter: string): Promise<ExamVersionRefDTO | null> {
+    const v = await prisma.examVersion.findUnique({
+      where: { examId_versionLetter: { examId, versionLetter } },
+      select: { id: true, examId: true, versionLetter: true },
+    });
+    return v;
   }
 
   async assignStudent(id: string, idAluno: string): Promise<Correcao> {

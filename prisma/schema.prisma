@@ -224,6 +224,7 @@ model Correcao {
   notaTotal            Float       @default(0.0) @map("nota_total")
   respostasLidas       Json        @map("respostas_lidas")
   atribuicaoAutomatica Boolean     @default(false) @map("atribuicao_automatica")
+  versaoMarcada        String?     @db.Char(1) @map("versao_marcada")
   dataConfirmacao      DateTime    @default(now()) @map("data_confirmacao")
 
   versaoProva          ExamVersion @relation(fields: [idVersaoProva], references: [id], onDelete: Cascade)
