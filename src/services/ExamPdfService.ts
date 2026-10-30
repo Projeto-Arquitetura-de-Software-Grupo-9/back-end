@@ -47,12 +47,14 @@ export class ExamPdfService implements IExamPdfService {
 
         const showAnswerKey = request.showAnswerKey ?? false;
         const showQrCode = request.showQrCode ?? true;
-        const includeBoxNota = request.includeBoxNota ?? false;
-        const isDuplex = request.isDuplex ?? true;
-        const includeAnswerSheet = request.includeAnswerSheet ?? false;
+        const includeBoxNota = request.includeBoxNota ?? layout.header.includeBoxNota;
+        const isDuplex = request.isDuplex ?? false;
+        const answerSheetOnly = request.answerSheetOnly ?? false;
+        const includeAnswerSheet = answerSheetOnly ? true : (request.includeAnswerSheet ?? false);
 
-        const needsBookletBlankVerso = isDuplex && layout.pages.length % 2 !== 0;
-        let totalPages = layout.pages.length;
+        const questionPageCount = answerSheetOnly ? 0 : layout.pages.length;
+        const needsBookletBlankVerso = isDuplex && questionPageCount % 2 !== 0;
+        let totalPages = questionPageCount;
         if (includeAnswerSheet) {
           if (needsBookletBlankVerso) totalPages += 1;
           totalPages += 1; // Answer sheet
@@ -62,7 +64,7 @@ export class ExamPdfService implements IExamPdfService {
         }
 
         // Render Page by Page
-        for (let i = 0; i < layout.pages.length; i++) {
+        for (let i = 0; i < questionPageCount; i++) {
           const page = layout.pages[i];
           doc.addPage();
 
@@ -372,10 +374,12 @@ export class ExamPdfService implements IExamPdfService {
     const layout = await this.getExamLayout(request.examId, versionLetter);
     const pdfBuffer = await this.generatePdfBuffer(request);
     const isDuplex = request.isDuplex ?? false;
-    const includeAnswerSheet = request.includeAnswerSheet ?? false;
-    const needsBookletBlankVerso = isDuplex && layout.pages.length % 2 !== 0;
+    const answerSheetOnly = request.answerSheetOnly ?? false;
+    const includeAnswerSheet = answerSheetOnly ? true : (request.includeAnswerSheet ?? false);
+    const questionPageCount = answerSheetOnly ? 0 : layout.pages.length;
+    const needsBookletBlankVerso = isDuplex && questionPageCount % 2 !== 0;
 
-    let totalPages = layout.pages.length;
+    let totalPages = questionPageCount;
     if (includeAnswerSheet) {
       if (needsBookletBlankVerso) totalPages += 1;
       totalPages += 1;
@@ -390,7 +394,7 @@ export class ExamPdfService implements IExamPdfService {
     return {
       examId: request.examId,
       versionLetter,
-      fileName: `Prova-${layout.header.code.replace(/[^a-zA-Z0-9]/g, '')}-Caderno-${versionLetter}${duplexSuffix}${answerSuffix}.pdf`,
+      fileName: `${answerSheetOnly ? 'FolhaRespostas' : 'Prova'}-${layout.header.code.replace(/[^a-zA-Z0-9]/g, '')}-Caderno-${versionLetter}${duplexSuffix}${answerSheetOnly ? '' : answerSuffix}.pdf`,
       contentType: 'application/pdf',
       fileSizeBytes: pdfBuffer.length,
       pdfBase64: pdfBuffer.toString('base64'),
