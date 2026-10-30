@@ -75,22 +75,24 @@ export class ExamPdfService implements IExamPdfService {
           const contentWidth = pageWidth - (leftMargin + rightMargin);
 
           if (page.isFirstPage) {
+            // Reserve header space for QR and optional grade box instead of covering student fields.
+            const headerTextWidth = contentWidth - (includeBoxNota && showQrCode ? 185 : 110);
             // === PAGE 1 HEADER ===
             // Institutional Branding
             doc.font('Helvetica-Bold').fontSize(11).fillColor('#0f172a');
-            doc.text(layout.header.institution.toUpperCase(), leftMargin, 40, { width: contentWidth - 110 });
+            doc.text(layout.header.institution.toUpperCase(), leftMargin, 40, { width: headerTextWidth });
 
             doc.font('Helvetica').fontSize(9).fillColor('#334155');
-            doc.text(layout.header.department, leftMargin, 54, { width: contentWidth - 110 });
-            doc.text(`Curso: ${layout.header.course}  |  Disciplina: ${layout.header.discipline}`, leftMargin, 67);
-            doc.text(`Turma: ${layout.header.classGroup}  |  Caderno: ${versionLetter}`, leftMargin, 80);
+            doc.text(layout.header.department, leftMargin, 54, { width: headerTextWidth });
+            doc.text(`Curso: ${layout.header.course}  |  Disciplina: ${layout.header.discipline}`, leftMargin, 67, { width: headerTextWidth, height: 12 });
+            doc.text(`Turma: ${layout.header.classGroup}  |  Caderno: ${versionLetter}`, leftMargin, 80, { width: headerTextWidth });
 
             doc.font('Helvetica-Bold').fontSize(10).fillColor('#0f172a');
             doc.text(`${layout.header.title} — ${layout.header.semester}`, leftMargin, 95);
 
             // Box NOTA (Top Right)
             if (includeBoxNota) {
-              const boxX = pageWidth - rightMargin - 95;
+              const boxX = pageWidth - rightMargin - 95 - (showQrCode ? 70 : 0);
               const boxY = 40;
               const boxW = 95;
               const boxH = 55;
@@ -151,7 +153,7 @@ export class ExamPdfService implements IExamPdfService {
                 margin: 1,
                 width: 60,
               });
-              doc.image(qrBuffer, pageWidth - rightMargin - 60, 122, { width: 50, height: 50 });
+              doc.image(qrBuffer, pageWidth - rightMargin - 60, 40, { width: 55, height: 55 });
             }
 
             doc.y = 215;

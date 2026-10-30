@@ -4,6 +4,7 @@
   "description": "Express.js REST API backend for the Correge Exam & OMR Grading Platform",
   "main": "dist/server.js",
   "scripts": {
+    "test:results": "node --import tsx --test tests/results.test.ts",
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && rimraf dist && tsc",
     "postinstall": "prisma generate",
