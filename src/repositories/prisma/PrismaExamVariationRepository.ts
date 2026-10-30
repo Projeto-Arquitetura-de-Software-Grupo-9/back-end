@@ -6,15 +6,51 @@ import {
 import { IExamVariationRepository } from '../interfaces/IExamVariationRepository';
 
 export class PrismaExamVariationRepository implements IExamVariationRepository {
-  async getBaseQuestions(_examId: string): Promise<VariationQuestionDTO[]> {
-    const questions = await prisma.question.findMany({
-      where: { deletedAt: null, type: 'objetiva' },
-      include: { alternatives: { orderBy: { letter: 'asc' } } },
-      take: 5,
-      orderBy: { createdAt: 'asc' },
+  async getBaseQuestions(examId: string): Promise<VariationQuestionDTO[]> {
+    const exam = await prisma.exam.findUnique({
+      where: { id: examId },
+      select: { variationsJson: true },
     });
+    const configuration = exam?.variationsJson && typeof exam.variationsJson === 'object'
+      ? (exam.variationsJson as Record<string, unknown>)
+      : {};
+    const selectedIds = Array.isArray(configuration.selectedQuestionIds)
+      ? configuration.selectedQuestionIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    if (selectedIds.length === 0) return [];
 
-    return questions.map((q, idx) => ({
+    if (Array.isArray(configuration.selectedQuestions)) {
+      const snapshots = new Map(
+        (configuration.selectedQuestions as Array<Record<string, unknown>>)
+          .filter((question) => typeof question.id === 'string')
+          .map((question) => [question.id as string, question])
+      );
+      return selectedIds.flatMap((id, idx) => {
+        const question = snapshots.get(id);
+        if (!question || !Array.isArray(question.alternatives)) return [];
+        return [{
+          originalQuestionId: id,
+          orderIndex: idx + 1,
+          statement: String(question.statement || ''),
+          discipline: typeof question.discipline === 'string' ? question.discipline : undefined,
+          topic: typeof question.topic === 'string' ? question.topic : undefined,
+          difficulty: typeof question.difficulty === 'string' ? question.difficulty : undefined,
+          alternatives: question.alternatives as VariationQuestionDTO['alternatives'],
+          correctAlternative: question.correctAlternative as VariationQuestionDTO['correctAlternative'],
+        }];
+      });
+    }
+
+    const questions = await prisma.question.findMany({
+      where: { id: { in: selectedIds }, deletedAt: null, type: 'objetiva' },
+      include: { alternatives: { orderBy: { letter: 'asc' } } },
+    });
+    const questionsById = new Map(questions.map((question) => [question.id, question]));
+
+    return selectedIds.flatMap((id, idx) => {
+      const q = questionsById.get(id);
+      if (!q || q.alternatives.length < 2) return [];
+      return [{
       originalQuestionId: q.id,
       orderIndex: idx + 1,
       statement: q.statement,
@@ -27,7 +63,8 @@ export class PrismaExamVariationRepository implements IExamVariationRepository {
         text: a.text,
       })),
       correctAlternative: q.correctAlternative as 'A' | 'B' | 'C' | 'D' | 'E',
-    }));
+      }];
+    });
   }
 
   async saveVariations(
@@ -36,10 +73,13 @@ export class PrismaExamVariationRepository implements IExamVariationRepository {
   ): Promise<void> {
     const existingExam = await prisma.exam.findUnique({ where: { id: examId } });
     if (existingExam) {
+      const previous = existingExam.variationsJson && typeof existingExam.variationsJson === 'object'
+        ? (existingExam.variationsJson as Record<string, unknown>)
+        : {};
       await prisma.exam.update({
         where: { id: examId },
         data: {
-          variationsJson: result as any,
+          variationsJson: { ...previous, generatedVariations: result } as any,
         },
       });
     } else {
@@ -99,6 +139,9 @@ export class PrismaExamVariationRepository implements IExamVariationRepository {
   async getVariations(examId: string): Promise<ExamVariationResultDTO | null> {
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
     if (!exam || !exam.variationsJson) return null;
-    return exam.variationsJson as unknown as ExamVariationResultDTO;
+    const stored = exam.variationsJson as Record<string, unknown>;
+    const variations = stored.generatedVariations ?? stored;
+    if (!variations || typeof variations !== 'object' || !('versions' in variations)) return null;
+    return variations as unknown as ExamVariationResultDTO;
   }
 }

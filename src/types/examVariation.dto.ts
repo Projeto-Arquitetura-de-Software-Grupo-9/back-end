@@ -3,7 +3,7 @@
  * Clean Architecture - Decoupled from DB entities
  */
 
-export type ExamVersionLetter = 'A' | 'B' | 'C' | 'D';
+export type ExamVersionLetter = string; // 'A' .. 'Z' (N cadernos)
 export type PermutationStrategy = 'FISHER_YATES' | 'CYCLIC_ROTATION' | 'TOPIC_BALANCED';
 
 export interface VariationAlternativeDTO {
@@ -51,7 +51,7 @@ export interface StudentAssignmentDTO {
 
 export interface GenerateVariationsRequestDTO {
   examId: string;
-  numberOfVersions: number; // 1 to 4
+  numberOfVersions: number; // 1 to 26 (A..Z)
   shuffleQuestions: boolean;
   shuffleAlternatives: boolean;
   strategy?: PermutationStrategy;

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { IStudentService } from '../services/interfaces/IStudentService';
-import { StudentFilterDTO } from '../types/student.dto';
+import { ImportStudentsResultDTO, StudentFilterDTO } from '../types/student.dto';
 
 export class StudentController {
   constructor(private readonly studentService: IStudentService) {}
@@ -137,14 +137,20 @@ export class StudentController {
       const file = (req as any).file as Express.Multer.File | undefined;
 
       if (file && file.buffer) {
+        const isXlsx =
+          /\.xlsx$/i.test(file.originalname || '') ||
+          (file.mimetype || '').includes('spreadsheetml');
+        if (!isXlsx) {
+          res.status(400).json({
+            success: false,
+            error: 'Formato inválido. Envie uma planilha Excel (.xlsx).',
+          });
+          return;
+        }
         const result = await this.studentService.importStudentsFromExcelBuffer(
           file.buffer
         );
-        res.status(201).json({
-          success: true,
-          message: `${result.importedCount} alunos importados da planilha com sucesso.`,
-          data: result,
-        });
+        this.sendImportResult(res, result, 'da planilha');
         return;
       }
 
@@ -152,16 +158,54 @@ export class StudentController {
         ? req.body
         : req.body.students || [];
       const result = await this.studentService.importStudents(students);
-
-      res.status(201).json({
-        success: true,
-        message: `${result.importedCount} alunos importados com sucesso.`,
-        data: result,
-      });
+      this.sendImportResult(res, result, 'da lista');
     } catch (err: any) {
       res.status(400).json({
         success: false,
         error: err.message || 'Erro ao importar lista de alunos.',
+      });
+    }
+  };
+
+  private sendImportResult(
+    res: Response,
+    result: ImportStudentsResultDTO,
+    origin: string
+  ): void {
+    if (result.importedCount === 0) {
+      res.status(422).json({
+        success: false,
+        error: 'Nenhum aluno foi importado. Verifique os erros por linha.',
+        data: result,
+      });
+      return;
+    }
+    const skipped =
+      result.skippedCount > 0 ? ` ${result.skippedCount} linha(s) ignorada(s).` : '';
+    res.status(201).json({
+      success: true,
+      message: `${result.importedCount} aluno(s) importado(s) ${origin}.${skipped}`,
+      data: result,
+    });
+  }
+
+  importTemplate = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const buffer = await this.studentService.buildImportTemplateBuffer();
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="modelo_importacao_alunos.xlsx"'
+      );
+      res.setHeader('Content-Length', String(buffer.length));
+      res.send(buffer);
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        error: err.message || 'Erro ao gerar modelo de importação.',
       });
     }
   };
