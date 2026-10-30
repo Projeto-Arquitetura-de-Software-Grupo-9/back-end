@@ -3,7 +3,7 @@
  * Clean Architecture - Decoupled from DB entities
  */
 
-export type ExamVersionLetter = 'A' | 'B' | 'C' | 'D';
+export type ExamVersionLetter = string;
 
 export interface ExamAlternativeDTO {
   id: string;
@@ -81,6 +81,8 @@ export interface GenerateExamPdfRequestDTO {
   includeBoxNota?: boolean;
   isDuplex?: boolean;
   includeAnswerSheet?: boolean;
+  /** Gera somente a folha de respostas (sem as páginas de questões) */
+  answerSheetOnly?: boolean;
 }
 
 export interface ExamPdfResultDTO {

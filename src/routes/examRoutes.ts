@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ExamController } from '../controllers/ExamController';
+import { AnswerSheetController } from '../controllers/AnswerSheetController';
 import { ExamVariationController } from '../controllers/ExamVariationController';
 import { IExamRepository } from '../repositories/interfaces/IExamRepository';
 import { IExamVariationRepository } from '../repositories/interfaces/IExamVariationRepository';
@@ -18,6 +19,7 @@ export function createExamRouter(
   const varRepo = variationRepository || repositories.examVariation;
   const varService = new ExamVariationService(varRepo);
   const varController = new ExamVariationController(varService);
+  const answerSheetController = new AnswerSheetController(service, varService);
 
   const router = Router();
 
@@ -32,6 +34,10 @@ export function createExamRouter(
   router.get('/:id/layout', controller.getLayout);
   router.post('/:id/generate-pdf', controller.generatePdf);
   router.get('/:id/download-pdf', controller.downloadPdf);
+
+  // Folha de Respostas (dados da página + PDF só do cartão-resposta)
+  router.get('/:id/answer-sheet', answerSheetController.get);
+  router.get('/:id/answer-sheet/pdf', answerSheetController.pdf);
 
   // Variations (Criar Provas Diferentes) Endpoints
   router.post('/:id/variations/generate', varController.generate);

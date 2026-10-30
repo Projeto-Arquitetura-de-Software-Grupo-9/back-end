@@ -28,7 +28,7 @@ export class MockExamRepository implements IExamRepository {
         'As questões objetivas devem ser assinaladas no gabarito oficial com preenchimento completo do círculo.',
         'Rasuras na folha de respostas anularão a questão.',
       ],
-      includeBoxNota: true,
+      includeBoxNota: false,
     },
     'exam-default': {
       institution: 'UNIVERSIDADE FEDERAL DO RIO DE JANEIRO',
@@ -48,7 +48,7 @@ export class MockExamRepository implements IExamRepository {
         'Rasuras anularão a questão.',
         'Duração máxima: 2 horas. Permitida consulta apenas a textos de lei seca sem anotações.',
       ],
-      includeBoxNota: true,
+      includeBoxNota: false,
     },
   };
 
