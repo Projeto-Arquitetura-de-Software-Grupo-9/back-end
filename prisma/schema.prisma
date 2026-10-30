@@ -55,6 +55,7 @@ model Disciplina {
 
   professor   Professor  @relation(fields: [idProfessor], references: [id], onDelete: Cascade)
   turmas      Turma[]
+  provas      Exam[]
 
   @@index([idProfessor])
   @@map("disciplinas")
@@ -155,6 +156,7 @@ model Exam {
   department     String        @map("departamento")
   course         String        @map("curso")
   discipline     String        @map("disciplina")
+  disciplinaId   String?       @map("id_disciplina")
   classGroup     String        @map("turma")
   semester       String        @map("semestre")
   date           String        @map("data_aplicacao")
@@ -164,7 +166,9 @@ model Exam {
   variationsJson Json?         @map("variacoes_json")
   createdAt      DateTime      @default(now()) @map("criado_em")
   versions       ExamVersion[]
+  disciplinaRef  Disciplina?   @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
 
+  @@index([disciplinaId])
   @@map("provas")
 }
 

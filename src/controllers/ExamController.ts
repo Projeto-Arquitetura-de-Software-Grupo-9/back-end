@@ -3,13 +3,32 @@ import { prisma } from '../config/database';
 import { IExamPdfService } from '../services/interfaces/IExamPdfService';
 import { ExamVersionLetter, GenerateExamPdfRequestDTO } from '../types/examPdf.dto';
 
+/**
+ * Resolve a disciplina existente selecionada na criação/edição da prova.
+ * Retorna null quando nenhum id foi informado (modo texto livre legado).
+ * Lança erro com status HTTP quando o id é inválido/inexistente.
+ */
+async function resolveDisciplina(disciplinaId: unknown) {
+  if (disciplinaId === undefined || disciplinaId === null || disciplinaId === '') return null;
+  if (typeof disciplinaId !== 'string') {
+    throw Object.assign(new Error('disciplinaId inválido.'), { status: 400 });
+  }
+  const disciplina = await prisma.disciplina.findUnique({ where: { id: disciplinaId } });
+  if (!disciplina) {
+    throw Object.assign(new Error('Disciplina selecionada não existe.'), { status: 404 });
+  }
+  return disciplina;
+}
+
 export class ExamController {
   constructor(private readonly examPdfService: IExamPdfService) {}
 
-  list = async (_req: Request, res: Response): Promise<void> => {
+  list = async (req: Request, res: Response): Promise<void> => {
     try {
+      const disciplinaId = req.query.disciplinaId as string | undefined;
       const exams = await prisma.exam.findMany({
-        include: { versions: true },
+        where: disciplinaId ? { disciplinaId } : undefined,
+        include: { versions: true, disciplinaRef: true },
         orderBy: { createdAt: 'desc' },
       });
       res.status(200).json({
@@ -30,7 +49,7 @@ export class ExamController {
       const { id } = req.params;
       const exam = await prisma.exam.findUnique({
         where: { id },
-        include: { versions: true },
+        include: { versions: true, disciplinaRef: true },
       });
       if (!exam) {
         res.status(404).json({ success: false, error: 'Prova não encontrada.' });
@@ -54,6 +73,8 @@ export class ExamController {
         ? body.instructions.split('\n').filter(Boolean)
         : [];
 
+      const disciplina = await resolveDisciplina(body.disciplinaId);
+
       const created = await prisma.exam.create({
         data: {
           id: body.id || undefined,
@@ -62,8 +83,9 @@ export class ExamController {
           subtitle: body.subtitle || `Período Letivo ${body.semester || '2026.1'}`,
           institution: body.institution || 'CATÓLICA DE SANTA CATARINA',
           department: body.department || 'Curso de Direito',
-          course: body.course || 'Direito',
-          discipline: body.discipline || 'Direito Constitucional',
+          course: disciplina?.curso || body.course || 'Direito',
+          discipline: disciplina?.nome || body.discipline || 'Direito Constitucional',
+          disciplinaId: disciplina?.id ?? null,
           classGroup: body.classGroup || 'Turma A',
           semester: body.semester || '2026.1',
           date: body.date || new Date().toLocaleDateString('pt-BR'),
@@ -72,7 +94,7 @@ export class ExamController {
           includeBoxNota: body.includeBoxNota ?? false,
           variationsJson: body.variationsJson ?? undefined,
         },
-        include: { versions: true },
+        include: { versions: true, disciplinaRef: true },
       });
 
       res.status(201).json({
@@ -80,7 +102,7 @@ export class ExamController {
         data: created,
       });
     } catch (err: any) {
-      res.status(400).json({
+      res.status(err.status || 400).json({
         success: false,
         error: err.message || 'Erro ao criar prova.',
       });
@@ -98,6 +120,10 @@ export class ExamController {
             : String(body.instructions).split('\n').filter(Boolean)
           : undefined;
 
+      // disciplinaId: undefined = não altera; null/'' = desvincula; id = vincula
+      const unlink = body.disciplinaId === null || body.disciplinaId === '';
+      const disciplina = unlink ? null : await resolveDisciplina(body.disciplinaId);
+
       const updated = await prisma.exam.update({
         where: { id },
         data: {
@@ -106,8 +132,9 @@ export class ExamController {
           subtitle: body.subtitle !== undefined ? body.subtitle : undefined,
           institution: body.institution !== undefined ? body.institution : undefined,
           department: body.department !== undefined ? body.department : undefined,
-          course: body.course !== undefined ? body.course : undefined,
-          discipline: body.discipline !== undefined ? body.discipline : undefined,
+          course: disciplina ? disciplina.curso : body.course !== undefined ? body.course : undefined,
+          discipline: disciplina ? disciplina.nome : body.discipline !== undefined ? body.discipline : undefined,
+          disciplinaId: disciplina ? disciplina.id : unlink ? null : undefined,
           classGroup: body.classGroup !== undefined ? body.classGroup : undefined,
           semester: body.semester !== undefined ? body.semester : undefined,
           date: body.date !== undefined ? body.date : undefined,
@@ -116,7 +143,7 @@ export class ExamController {
           includeBoxNota: body.includeBoxNota !== undefined ? Boolean(body.includeBoxNota) : undefined,
           variationsJson: body.variationsJson !== undefined ? body.variationsJson : undefined,
         },
-        include: { versions: true },
+        include: { versions: true, disciplinaRef: true },
       });
 
       res.status(200).json({
@@ -124,7 +151,7 @@ export class ExamController {
         data: updated,
       });
     } catch (err: any) {
-      res.status(400).json({
+      res.status(err.status || 400).json({
         success: false,
         error: err.message || 'Erro ao atualizar prova.',
       });
