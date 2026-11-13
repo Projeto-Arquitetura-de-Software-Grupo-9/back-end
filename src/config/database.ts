@@ -1,9 +1,11 @@
+import fs from 'fs';
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import { MockStudentRepository } from '../repositories/mock/MockStudentRepository';
 import { MockQuestionRepository } from '../repositories/mock/MockQuestionRepository';
 import { MockQrCodeRepository } from '../repositories/mock/MockQrCodeRepository';
-import { PrismaTiDBHttpAdapterFactory, TiDBHttpConfig } from './tidbHttpAdapter';
+import { TiDBHttpConfig } from './tidbHttpAdapter';
 
 dotenv.config();
 
@@ -50,16 +52,35 @@ function buildDatabaseUrl(): string {
     `mysql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${dbName}`;
 
   const isTiDB = url.includes('tidbcloud.com') || host.includes('tidbcloud.com');
-  if (isTiDB && !url.includes('sslaccept=')) {
-    const separator = url.includes('?') ? '&' : '?';
-    url = `${url}${separator}sslcert=./isrgrootx1.pem&sslaccept=strict`;
+  if (isTiDB) {
+    const certPath = path.resolve(process.cwd(), 'isrgrootx1.pem');
+    const certExists = fs.existsSync(certPath);
+
+    // On Vercel / serverless or if local .pem cert is absent, do NOT supply sslcert parameter.
+    // Modern Linux runtime environments (like AWS Lambda on Vercel) already include
+    // the ISRG Root X1 Let's Encrypt certificate in their trusted system root CA store.
+    if (process.env.VERCEL || !certExists) {
+      url = url.replace(/([?&])sslcert=[^&]*(&|$)/, '$1').replace(/[?&]$/, '');
+      if (!url.includes('sslaccept=')) {
+        const separator = url.includes('?') ? '&' : '?';
+        url = `${url}${separator}sslaccept=strict`;
+      }
+    } else if (!url.includes('sslaccept=')) {
+      const separator = url.includes('?') ? '&' : '?';
+      url = `${url}${separator}sslcert=./isrgrootx1.pem&sslaccept=strict`;
+    }
+
+    if (!url.includes('connect_timeout=')) {
+      const separator = url.includes('?') ? '&' : '?';
+      url = `${url}${separator}connect_timeout=20`;
+    }
   }
 
   return url;
 }
 
 export const databaseUrl = buildDatabaseUrl();
-const tidbConfig = parseTiDBConfig();
+export const tidbConfig = parseTiDBConfig();
 const logLevels: ('warn' | 'error')[] =
   process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'];
 
@@ -70,19 +91,14 @@ declare global {
 
 export const prisma: PrismaClient =
   global.__prisma ||
-  (tidbConfig
-    ? new PrismaClient({
-        adapter: new PrismaTiDBHttpAdapterFactory(tidbConfig),
-        log: logLevels,
-      } as any)
-    : new PrismaClient({
-        datasources: {
-          db: {
-            url: databaseUrl,
-          },
-        },
-        log: logLevels,
-      }));
+  new PrismaClient({
+    datasources: {
+      db: {
+        url: databaseUrl,
+      },
+    },
+    log: logLevels,
+  });
 
 if (process.env.NODE_ENV !== 'production') {
   global.__prisma = prisma;
