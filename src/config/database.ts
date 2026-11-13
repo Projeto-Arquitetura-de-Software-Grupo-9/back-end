@@ -42,7 +42,7 @@ function buildDatabaseUrl(): string {
   const host = process.env.DB_HOST || 'gateway01.ap-northeast-1.prod.aws.tidbcloud.com';
   const port = process.env.DB_PORT || '4000';
   const user = process.env.DB_USER || '3SU7yETPYeXcU97.root';
-  const password = process.env.DB_PASSWORD || '';
+  const password = process.env.DB_PASSWORD || '7y3wuFiPiWVDANpU';
   const dbName = process.env.DB_NAME || 'sgp_catolica';
 
   let url =
@@ -101,7 +101,7 @@ export async function connectDatabase(): Promise<boolean> {
   try {
     await prisma.$connect();
     await prisma.$queryRaw`SELECT 1`;
-    const host = process.env.DB_HOST || 'MySQL';
+    const host = process.env.DB_HOST || 'gateway01.ap-northeast-1.prod.aws.tidbcloud.com';
     const db = process.env.DB_NAME || 'sgp_catolica';
     console.log(`✅ Connected to database: ${db} (${host})`);
     return true;
