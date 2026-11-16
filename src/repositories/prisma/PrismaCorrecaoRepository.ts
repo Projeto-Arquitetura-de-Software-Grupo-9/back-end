@@ -51,10 +51,33 @@ export class PrismaCorrecaoRepository implements ICorrecaoRepository {
   }
 
   async findVersao(examId: string, versionLetter: string): Promise<ExamVersionRefDTO | null> {
-    const v = await prisma.examVersion.findUnique({
+    let v = await prisma.examVersion.findUnique({
       where: { examId_versionLetter: { examId, versionLetter } },
       select: { id: true, examId: true, versionLetter: true },
     });
+    if (!v) {
+      const examExists = await prisma.exam.findUnique({
+        where: { id: examId },
+        select: { id: true, code: true },
+      });
+      if (examExists) {
+        v = await prisma.examVersion.create({
+          data: {
+            examId,
+            versionLetter,
+            questionsLayout: [],
+            answerKey: {},
+            qrCodePayload: JSON.stringify({
+              app: 'CORREGE',
+              examId,
+              code: examExists.code,
+              ver: versionLetter,
+            }),
+          },
+          select: { id: true, examId: true, versionLetter: true },
+        });
+      }
+    }
     return v;
   }
 
