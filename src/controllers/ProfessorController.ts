@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { IProfessorRepository } from '../repositories/interfaces/IProfessorRepository';
 
 export class ProfessorController {
@@ -18,14 +20,33 @@ export class ProfessorController {
         return;
       }
 
-      // No mock/desenvolvimento ou senha válida
+      let isPasswordValid = false;
+      if (professor.senhaHash && professor.senhaHash.startsWith('$2')) {
+        isPasswordValid = await bcrypt.compare(senha, professor.senhaHash);
+      } else {
+        // Compatibilidade com senhas legadas em texto puro (seeds/mock)
+        isPasswordValid = (senha === professor.senhaHash);
+      }
+
+      if (!isPasswordValid) {
+        res.status(401).json({ success: false, error: 'Credenciais inválidas.' });
+        return;
+      }
+
+      const secret = process.env.JWT_SECRET || 'correge-jwt-secret-catolica-2026';
+      const token = jwt.sign(
+        { id: professor.id, email: professor.email, nomeCompleto: professor.nomeCompleto },
+        secret,
+        { expiresIn: '7d' }
+      );
+
       res.status(200).json({
         success: true,
         data: {
           id: professor.id,
           nomeCompleto: professor.nomeCompleto,
           email: professor.email,
-          token: `jwt-token-${professor.id}-${Date.now()}`,
+          token,
         },
       });
     } catch (err: any) {
@@ -47,10 +68,11 @@ export class ProfessorController {
         return;
       }
 
+      const senhaHash = await bcrypt.hash(senha, 10);
       const professor = await this.repo.create({
         nomeCompleto,
         email,
-        senhaHash: senha, // In production, bcrypt.hash
+        senhaHash,
       });
 
       res.status(201).json({

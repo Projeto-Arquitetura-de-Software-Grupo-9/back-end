@@ -89,6 +89,8 @@ export class ExamVariationService implements IExamVariationService {
       versions.forEach((v) => {
         const found = v.questions.find((q) => q.originalQuestionId === bq.originalQuestionId);
         if (found) {
+          entry[`orderIndex${v.versionLetter}`] = found.orderIndex;
+          entry[`correctLetter${v.versionLetter}`] = found.correctAlternative;
           if (v.versionLetter === 'B') {
             entry.orderIndexB = found.orderIndex;
             entry.correctLetterB = found.correctAlternative;

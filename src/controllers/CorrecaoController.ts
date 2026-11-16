@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { ICorrecaoRepository } from '../repositories/interfaces/ICorrecaoRepository';
 
-const VERSION_LETTERS = ['A', 'B', 'C', 'D'];
+const VERSION_LETTERS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
 
 /**
  * Normaliza a(s) bolha(s) de caderno lidas na folha de respostas.
@@ -12,7 +12,7 @@ function parseVersaoMarcada(raw: unknown): { letter: string | null; error?: stri
   const list = (Array.isArray(raw) ? raw : [raw]).map((v) => String(v).trim().toUpperCase()).filter(Boolean);
   const unique = Array.from(new Set(list));
   if (unique.some((l) => !VERSION_LETTERS.includes(l))) {
-    return { letter: null, error: 'versaoMarcada deve ser A, B, C ou D.' };
+    return { letter: null, error: 'versaoMarcada deve ser uma letra de A a Z.' };
   }
   if (unique.length > 1) {
     return { letter: null, error: 'Mais de uma bolha de caderno marcada na folha de respostas.' };

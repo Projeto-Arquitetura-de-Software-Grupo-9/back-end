@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
-import { IExamRepository } from '../repositories/interfaces/IExamRepository';
+import { IExamLayoutRepository, IExamRepository } from '../repositories/interfaces/IExamRepository';
 import {
   ExamLayoutDTO,
   ExamPdfResultDTO,
@@ -11,7 +11,7 @@ import {
 import { IExamPdfService } from './interfaces/IExamPdfService';
 
 export class ExamPdfService implements IExamPdfService {
-  constructor(private examRepository: IExamRepository) {}
+  constructor(private examRepository: IExamLayoutRepository) {}
 
   async getExamLayout(examId: string, versionLetter: ExamVersionLetter = 'A'): Promise<ExamLayoutDTO> {
     const layout = await this.examRepository.getExamLayout(examId, versionLetter);
@@ -265,14 +265,19 @@ export class ExamPdfService implements IExamPdfService {
             doc.image(qrBuffer, pageWidth - rightMargin - 65, 30, { width: 54, height: 54 });
           }
 
-          // Bolhas de versão do caderno (A–D): o aluno marca o caderno que recebeu
+          // Bolhas de versão do caderno: o aluno marca o caderno que recebeu (A..Z dinâmico)
           const verBoxX = pageWidth - rightMargin - 65 - 135;
           doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#0f172a');
           doc.text('CADERNO (marque o seu):', verBoxX, 38, { lineBreak: false });
-          (['A', 'B', 'C', 'D'] as const).forEach((l, i) => {
-            const bx = verBoxX + 6 + i * 30;
-            doc.circle(bx + 5, 56, 6).lineWidth(0.75).strokeColor('#0f172a').stroke();
-            doc.font('Helvetica').fontSize(7).fillColor('#0f172a');
+          const currentCharCode = (versionLetter || 'A').toUpperCase().charCodeAt(0);
+          const maxCharCode = Math.max(68, currentCharCode); // pelo menos 'D' (68), ou até a letra do caderno atual
+          const versionCount = Math.min(26, maxCharCode - 65 + 1);
+          const bubblesList = Array.from({ length: versionCount }, (_, i) => String.fromCharCode(65 + i));
+          const step = bubblesList.length > 4 ? Math.max(14, 120 / bubblesList.length) : 30;
+          bubblesList.forEach((l, i) => {
+            const bx = verBoxX + 6 + i * step;
+            doc.circle(bx + 5, 56, 5.5).lineWidth(0.75).strokeColor('#0f172a').stroke();
+            doc.font('Helvetica').fontSize(6.5).fillColor('#0f172a');
             doc.text(l, bx + 2.5, 53.5, { lineBreak: false });
           });
 

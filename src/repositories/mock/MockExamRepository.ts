@@ -5,7 +5,12 @@ import {
   ExamQuestionLayoutDTO,
   ExamVersionLetter,
 } from '../../types/examPdf.dto';
-import { IExamRepository } from '../interfaces/IExamRepository';
+import {
+  CreateExamDTO,
+  ExamRecordDTO,
+  IExamRepository,
+  UpdateExamDTO,
+} from '../interfaces/IExamRepository';
 
 export class MockExamRepository implements IExamRepository {
   private sampleHeaders: Record<string, ExamHeaderDTO> = {
@@ -51,6 +56,60 @@ export class MockExamRepository implements IExamRepository {
       includeBoxNota: false,
     },
   };
+
+  private mockExams: ExamRecordDTO[] = [
+    {
+      id: 'exam-catolica-01',
+      code: '#DIR-EMPRESARIAL-02',
+      title: 'AVALIAÇÃO ESCRITA 02',
+      subtitle: 'Semestre Letivo 2024.2',
+      institution: 'Católica SC Centro Universitário',
+      department: 'Escola de Direito',
+      course: 'Direito',
+      discipline: 'Sociedades Empresariais e Direito de Reestruturação Empresarial',
+      disciplinaId: 'disc-mock-1',
+      classGroup: 'Turma A',
+      semester: '2024.2',
+      date: '23/10/2024',
+      duration: '3 horas',
+      instructions: [
+        'Sobre a mesa, o estudante deverá manter somente o material necessário para a realização da prova (caneta azul ou preta, lápis e borracha).',
+        'Todos os celulares e aparelhos eletrônicos deverão ser desligados e guardados.',
+        'A interpretação das questões faz parte integrante da avaliação.',
+        'As questões objetivas devem ser assinaladas no gabarito oficial com preenchimento completo do círculo.',
+        'Rasuras na folha de respostas anularão a questão.',
+      ],
+      includeBoxNota: false,
+      variationsJson: { numberOfVersions: 4, shuffleQuestions: true, shuffleAlternatives: true },
+      createdAt: new Date('2024-10-23T10:00:00Z'),
+      versions: [],
+    },
+    {
+      id: 'exam-default',
+      code: '#DIR-CONST-2024.2',
+      title: 'P1 - Direito Constitucional I - 2024.2',
+      subtitle: 'Primeiro Semestre Acadêmico 2024.2',
+      institution: 'UNIVERSIDADE FEDERAL DO RIO DE JANEIRO',
+      department: 'Faculdade Nacional de Direito | Departamento de Direito Público',
+      course: 'Direito',
+      discipline: 'Direito Constitucional',
+      disciplinaId: 'disc-mock-2',
+      classGroup: 'Turma A',
+      semester: '2024.2',
+      date: '12/03/2024',
+      duration: '2 horas',
+      instructions: [
+        'Marque apenas uma alternativa por questão.',
+        'Preencha completamente o campo correspondente com caneta preta ou azul.',
+        'Rasuras anularão a questão.',
+        'Duração máxima: 2 horas. Permitida consulta apenas a textos de lei seca sem anotações.',
+      ],
+      includeBoxNota: false,
+      variationsJson: { numberOfVersions: 4, shuffleQuestions: true, shuffleAlternatives: true },
+      createdAt: new Date('2024-03-12T10:00:00Z'),
+      versions: [],
+    },
+  ];
 
   private sampleQuestions: ExamQuestionLayoutDTO[] = [
     {
@@ -140,24 +199,112 @@ export class MockExamRepository implements IExamRepository {
     },
   ];
 
+  async listExams(disciplinaId?: string): Promise<ExamRecordDTO[]> {
+    if (disciplinaId) {
+      return this.mockExams.filter((e) => e.disciplinaId === disciplinaId);
+    }
+    return [...this.mockExams];
+  }
+
+  async findExamById(id: string): Promise<ExamRecordDTO | null> {
+    const exam = this.mockExams.find((e) => e.id === id);
+    return exam ? { ...exam } : null;
+  }
+
+  async createExam(data: CreateExamDTO): Promise<ExamRecordDTO> {
+    const newExam: ExamRecordDTO = {
+      id: data.id || `exam-${Date.now()}`,
+      code: data.code || `#PROVA-${Date.now().toString().slice(-4)}`,
+      title: data.title,
+      subtitle: data.subtitle || '',
+      institution: data.institution,
+      department: data.department,
+      course: data.course,
+      discipline: data.discipline,
+      disciplinaId: data.disciplinaId || null,
+      classGroup: data.classGroup,
+      semester: data.semester,
+      date: data.date,
+      duration: data.duration,
+      instructions: data.instructions,
+      includeBoxNota: data.includeBoxNota ?? false,
+      variationsJson: data.variationsJson,
+      createdAt: new Date(),
+      versions: [],
+    };
+    this.mockExams.unshift(newExam);
+    this.sampleHeaders[newExam.id] = {
+      institution: newExam.institution,
+      department: newExam.department,
+      course: newExam.course,
+      discipline: newExam.discipline,
+      classGroup: newExam.classGroup,
+      semester: newExam.semester,
+      title: newExam.title,
+      subtitle: newExam.subtitle,
+      code: newExam.code,
+      date: newExam.date,
+      duration: newExam.duration,
+      instructions: newExam.instructions,
+      includeBoxNota: newExam.includeBoxNota,
+    };
+    return newExam;
+  }
+
+  async updateExam(id: string, data: UpdateExamDTO): Promise<ExamRecordDTO> {
+    const idx = this.mockExams.findIndex((e) => e.id === id);
+    if (idx === -1) {
+      throw new Error('Prova não encontrada.');
+    }
+    const current = this.mockExams[idx];
+    const updated: ExamRecordDTO = {
+      ...current,
+      ...data,
+      instructions: data.instructions ?? current.instructions,
+      includeBoxNota: data.includeBoxNota ?? current.includeBoxNota,
+    };
+    this.mockExams[idx] = updated;
+    this.sampleHeaders[id] = {
+      institution: updated.institution,
+      department: updated.department,
+      course: updated.course,
+      discipline: updated.discipline,
+      classGroup: updated.classGroup,
+      semester: updated.semester,
+      title: updated.title,
+      subtitle: updated.subtitle,
+      code: updated.code,
+      date: updated.date,
+      duration: updated.duration,
+      instructions: updated.instructions,
+      includeBoxNota: updated.includeBoxNota,
+    };
+    return updated;
+  }
+
+  async deleteExam(id: string): Promise<boolean> {
+    const idx = this.mockExams.findIndex((e) => e.id === id);
+    if (idx === -1) return false;
+    this.mockExams.splice(idx, 1);
+    delete this.sampleHeaders[id];
+    return true;
+  }
+
   async getExamById(id: string): Promise<ExamLayoutDTO | null> {
     return this.getExamLayout(id, 'A');
   }
 
   async getExamHeader(id: string): Promise<ExamHeaderDTO | null> {
     const key = this.sampleHeaders[id] ? id : 'exam-default';
-    return this.sampleHeaders[key];
+    return this.sampleHeaders[key] || null;
   }
 
-  async getExamQuestions(id: string, versionLetter: ExamVersionLetter): Promise<ExamQuestionLayoutDTO[]> {
-    // If version is B, C, D, apply deterministic permutation so each caderno is distinct
+  async getExamQuestions(id: string, versionLetter: ExamVersionLetter = 'A'): Promise<ExamQuestionLayoutDTO[]> {
     let list = [...this.sampleQuestions];
-    if (versionLetter === 'B') {
-      list = [list[1], list[3], list[0], list[4], list[2]];
-    } else if (versionLetter === 'C') {
-      list = [list[2], list[0], list[4], list[1], list[3]];
-    } else if (versionLetter === 'D') {
-      list = [list[3], list[4], list[1], list[2], list[0]];
+    const letterCode = (versionLetter || 'A').toUpperCase().charCodeAt(0) - 65;
+    if (letterCode > 0 && list.length > 0) {
+      const shift = letterCode % list.length;
+      list = [...list.slice(shift), ...list.slice(0, shift)];
     }
 
     return list.map((q, idx) => ({

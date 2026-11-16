@@ -40,6 +40,7 @@ export interface CrossAnswerKeyEntryDTO {
   correctLetterC?: string;
   orderIndexD?: number;
   correctLetterD?: string;
+  [key: string]: unknown;
 }
 
 export interface StudentAssignmentDTO {

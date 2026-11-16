@@ -162,7 +162,7 @@ model Exam {
   date           String        @map("data_aplicacao")
   duration       String        @default("2 horas") @map("duracao")
   instructions   Json          @map("instrucoes")
-  includeBoxNota Boolean       @default(true) @map("incluir_box_nota")
+  includeBoxNota Boolean       @default(false) @map("incluir_box_nota")
   variationsJson Json?         @map("variacoes_json")
   createdAt      DateTime      @default(now()) @map("criado_em")
   versions       ExamVersion[]

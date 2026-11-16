@@ -229,7 +229,7 @@ export class StudentService implements IStudentService {
       name: 'Maria da Silva',
       registration: '2026.1.001',
       course: 'Direito',
-      email: 'maria.silva@universidade.edu.br',
+      email: 'maria.silva@catolicasc.edu.br',
       classGroup: 'Turma A',
       discipline: 'Direito Constitucional',
       examsTaken: 0,
@@ -306,7 +306,7 @@ export class StudentService implements IStudentService {
       .trim()
       .replace(/[^a-z0-9]+/g, '.')
       .replace(/^\.+|\.+$/g, '');
-    return `${local || 'aluno'}@universidade.edu.br`;
+    return `${local || 'aluno'}@catolicasc.edu.br`;
   }
 
   /** Converte qualquer tipo de célula do Excel (texto, número, link, fórmula, rich text) em texto. */

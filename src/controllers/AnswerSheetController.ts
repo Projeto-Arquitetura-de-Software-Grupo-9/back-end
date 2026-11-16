@@ -3,12 +3,13 @@ import { IExamPdfService } from '../services/interfaces/IExamPdfService';
 import { IExamVariationService } from '../services/interfaces/IExamVariationService';
 import { ExamVersionLetter } from '../types/examPdf.dto';
 
-const VERSION_LETTERS: ExamVersionLetter[] = ['A', 'B', 'C', 'D'];
+const ALL_VERSION_LETTERS: ExamVersionLetter[] = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
+const DEFAULT_VERSIONS: ExamVersionLetter[] = ['A', 'B', 'C', 'D'];
 
 function parseVersion(raw: unknown): ExamVersionLetter | null {
   if (raw === undefined || raw === null || raw === '') return 'A';
   const v = String(raw).trim().toUpperCase();
-  return (VERSION_LETTERS as string[]).includes(v) ? (v as ExamVersionLetter) : null;
+  return /^[A-Z]$/.test(v) ? (v as ExamVersionLetter) : null;
 }
 
 /**
@@ -22,13 +23,13 @@ export class AnswerSheetController {
     private readonly variationService: IExamVariationService
   ) {}
 
-  /** Cadernos disponíveis: os já gerados em "Criar provas diferentes"; se nenhum, A–D. */
+  /** Cadernos disponíveis: os já gerados em "Criar provas diferentes"; se nenhum, A–D padrão. */
   private async resolveVersions(examId: string) {
     const variations = await this.variationService.getVariations(examId);
     const generated = variations ? variations.versions.map((v) => v.versionLetter) : [];
     return {
       variationsGenerated: generated.length > 0,
-      availableVersions: generated.length > 0 ? generated : VERSION_LETTERS,
+      availableVersions: generated.length > 0 ? generated : DEFAULT_VERSIONS,
     };
   }
 
@@ -37,7 +38,7 @@ export class AnswerSheetController {
       const { id } = req.params;
       const versionLetter = parseVersion(req.query.versionLetter);
       if (!versionLetter) {
-        res.status(400).json({ success: false, error: 'versionLetter deve ser A, B, C ou D.' });
+        res.status(400).json({ success: false, error: 'versionLetter deve ser uma letra de A a Z.' });
         return;
       }
 
@@ -68,7 +69,7 @@ export class AnswerSheetController {
           selectedVersion: versionLetter,
           availableVersions,
           variationsGenerated,
-          versionBubbles: VERSION_LETTERS,
+          versionBubbles: availableVersions,
           totalQuestions: Object.keys(layout.answerKey).length,
           alternativeLetters: ['A', 'B', 'C', 'D', 'E'],
           pdfUrl: `/api/v1/exams/${id}/answer-sheet/pdf?versionLetter=${versionLetter}`,
@@ -88,7 +89,7 @@ export class AnswerSheetController {
       const { id } = req.params;
       const versionLetter = parseVersion(req.query.versionLetter);
       if (!versionLetter) {
-        res.status(400).json({ success: false, error: 'versionLetter deve ser A, B, C ou D.' });
+        res.status(400).json({ success: false, error: 'versionLetter deve ser uma letra de A a Z.' });
         return;
       }
 

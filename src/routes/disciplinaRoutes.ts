@@ -1,11 +1,15 @@
 import { Router } from 'express';
 import { DisciplinaController } from '../controllers/DisciplinaController';
 import { IDisciplinaRepository } from '../repositories/interfaces/IDisciplinaRepository';
-import { prisma } from '../config/database';
+import { IExamRepository } from '../repositories/interfaces/IExamRepository';
 import { repositories } from '../repositories';
 
-export function createDisciplinaRouter(repo?: IDisciplinaRepository): Router {
+export function createDisciplinaRouter(
+  repo?: IDisciplinaRepository,
+  examRepo?: IExamRepository
+): Router {
   const repository = repo || repositories.disciplina;
+  const examRepository = examRepo || repositories.examLayout;
   const controller = new DisciplinaController(repository);
   const router = Router();
 
@@ -13,10 +17,7 @@ export function createDisciplinaRouter(repo?: IDisciplinaRepository): Router {
   // Provas vinculadas a uma disciplina
   router.get('/:id/exams', async (req, res) => {
     try {
-      const exams = await prisma.exam.findMany({
-        where: { disciplinaId: req.params.id },
-        orderBy: { createdAt: 'desc' },
-      });
+      const exams = await examRepository.listExams(req.params.id);
       res.status(200).json({ success: true, count: exams.length, data: exams });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message || 'Erro ao listar provas da disciplina.' });

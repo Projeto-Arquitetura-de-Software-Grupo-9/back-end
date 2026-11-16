@@ -6,9 +6,99 @@ import {
   ExamQuestionLayoutDTO,
   ExamVersionLetter,
 } from '../../types/examPdf.dto';
-import { IExamRepository } from '../interfaces/IExamRepository';
+import {
+  CreateExamDTO,
+  ExamRecordDTO,
+  IExamRepository,
+  UpdateExamDTO,
+} from '../interfaces/IExamRepository';
 
 export class PrismaExamRepository implements IExamRepository {
+  async listExams(disciplinaId?: string): Promise<ExamRecordDTO[]> {
+    const exams = await prisma.exam.findMany({
+      where: disciplinaId ? { disciplinaId } : undefined,
+      include: { versions: true, disciplinaRef: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return exams.map((exam) => ({
+      ...exam,
+      instructions: Array.isArray(exam.instructions) ? (exam.instructions as string[]) : [],
+    })) as ExamRecordDTO[];
+  }
+
+  async findExamById(id: string): Promise<ExamRecordDTO | null> {
+    const exam = await prisma.exam.findUnique({
+      where: { id },
+      include: { versions: true, disciplinaRef: true },
+    });
+    if (!exam) return null;
+    return {
+      ...exam,
+      instructions: Array.isArray(exam.instructions) ? (exam.instructions as string[]) : [],
+    } as ExamRecordDTO;
+  }
+
+  async createExam(data: CreateExamDTO): Promise<ExamRecordDTO> {
+    const created = await prisma.exam.create({
+      data: {
+        id: data.id || undefined,
+        code: data.code || `#PROVA-${Date.now().toString().slice(-4)}`,
+        title: data.title,
+        subtitle: data.subtitle || '',
+        institution: data.institution,
+        department: data.department,
+        course: data.course,
+        discipline: data.discipline,
+        disciplinaId: data.disciplinaId ?? null,
+        classGroup: data.classGroup,
+        semester: data.semester,
+        date: data.date,
+        duration: data.duration,
+        instructions: data.instructions,
+        includeBoxNota: data.includeBoxNota ?? false,
+        variationsJson: data.variationsJson,
+      },
+      include: { versions: true, disciplinaRef: true },
+    });
+    return {
+      ...created,
+      instructions: Array.isArray(created.instructions) ? (created.instructions as string[]) : [],
+    } as ExamRecordDTO;
+  }
+
+  async updateExam(id: string, data: UpdateExamDTO): Promise<ExamRecordDTO> {
+    const updated = await prisma.exam.update({
+      where: { id },
+      data: {
+        code: data.code !== undefined ? data.code : undefined,
+        title: data.title !== undefined ? data.title : undefined,
+        subtitle: data.subtitle !== undefined ? data.subtitle : undefined,
+        institution: data.institution !== undefined ? data.institution : undefined,
+        department: data.department !== undefined ? data.department : undefined,
+        course: data.course !== undefined ? data.course : undefined,
+        discipline: data.discipline !== undefined ? data.discipline : undefined,
+        disciplinaId: data.disciplinaId !== undefined ? data.disciplinaId : undefined,
+        classGroup: data.classGroup !== undefined ? data.classGroup : undefined,
+        semester: data.semester !== undefined ? data.semester : undefined,
+        date: data.date !== undefined ? data.date : undefined,
+        duration: data.duration !== undefined ? data.duration : undefined,
+        instructions: data.instructions !== undefined ? data.instructions : undefined,
+        includeBoxNota: data.includeBoxNota !== undefined ? Boolean(data.includeBoxNota) : undefined,
+        variationsJson: data.variationsJson !== undefined ? data.variationsJson : undefined,
+      },
+      include: { versions: true, disciplinaRef: true },
+    });
+    return {
+      ...updated,
+      instructions: Array.isArray(updated.instructions) ? (updated.instructions as string[]) : [],
+    } as ExamRecordDTO;
+  }
+
+  async deleteExam(id: string): Promise<boolean> {
+    await prisma.exam.delete({ where: { id } });
+    return true;
+  }
+
   async getExamById(id: string): Promise<ExamLayoutDTO | null> {
     return this.getExamLayout(id, 'A');
   }
@@ -40,7 +130,7 @@ export class PrismaExamRepository implements IExamRepository {
 
   async getExamQuestions(
     id: string,
-    versionLetter: ExamVersionLetter
+    versionLetter: ExamVersionLetter = 'A'
   ): Promise<ExamQuestionLayoutDTO[]> {
     const version = await prisma.examVersion.findUnique({
       where: {

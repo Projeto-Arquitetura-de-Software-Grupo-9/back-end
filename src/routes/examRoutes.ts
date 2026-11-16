@@ -14,7 +14,7 @@ export function createExamRouter(
 ): Router {
   const repo = repository || repositories.examLayout;
   const service = new ExamPdfService(repo);
-  const controller = new ExamController(service);
+  const controller = new ExamController(service, repo);
 
   const varRepo = variationRepository || repositories.examVariation;
   const varService = new ExamVariationService(varRepo);

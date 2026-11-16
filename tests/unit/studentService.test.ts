@@ -195,7 +195,7 @@ describe('StudentService Unit Tests (Full Business Logic & Excel Coverage)', () 
     // Verify auto-generated email for Beatriz Lima
     const beatriz = await repo.findByRegistration('2026.1.702');
     assert.ok(beatriz);
-    assert.equal(beatriz?.email, 'beatriz.lima@universidade.edu.br');
+    assert.equal(beatriz?.email, 'beatriz.lima@catolicasc.edu.br');
   });
 
   it('should build import template buffer and export students to Excel', async () => {
