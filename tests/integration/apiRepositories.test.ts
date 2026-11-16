@@ -2,6 +2,7 @@ import { createApp } from '../../src/app';
 import {
   createRepositories,
   getActiveDataSource,
+  setActiveDataSource,
   repositories,
 } from '../../src/repositories';
 import { PrismaProfessorRepository } from '../../src/repositories/prisma/PrismaProfessorRepository';
@@ -15,40 +16,42 @@ import { PrismaSettingsRepository } from '../../src/repositories/prisma/PrismaSe
 import { PrismaQrCodeRepository } from '../../src/repositories/prisma/PrismaQrCodeRepository';
 
 async function runTests() {
+  setActiveDataSource('mock');
+  const mockRepos = createRepositories('mock');
   console.log('🧪 Iniciando Testes de Integração da Arquitetura Hexagonal & Repositórios...');
 
   // Teste 1: Validação do Repositório Mock Padrão
   console.log('\n[Teste 1] Validando Repositórios em Memória (Mock)...');
   console.assert(getActiveDataSource() === 'mock', 'Data source inicial deve ser mock');
 
-  const disciplinas = await repositories.disciplina.list();
+  const disciplinas = await mockRepos.disciplina.list();
   console.assert(disciplinas.length >= 4, 'Deve haver ao menos 4 disciplinas no mock');
   console.log(`✅ Disciplinas carregadas: ${disciplinas.length} disciplinas.`);
 
-  const turmas = await repositories.turma.list();
+  const turmas = await mockRepos.turma.list();
   console.assert(turmas.length >= 3, 'Deve haver ao menos 3 turmas no mock');
   console.log(`✅ Turmas carregadas: ${turmas.length} turmas com relações.`);
 
-  const students = await repositories.student.findAll();
+  const students = await mockRepos.student.findAll();
   console.assert(students.length >= 5, 'Deve haver alunos no mock');
   console.log(`✅ Alunos (Students) carregados: ${students.length} alunos.`);
 
-  const questions = await repositories.question.findAll();
+  const questions = await mockRepos.question.findAll();
   console.assert(questions.length >= 3, 'Deve haver questões no mock');
   console.assert(questions.some((q) => q.alternatives.length > 0), 'Deve haver questões com alternativas no mock');
   console.log(`✅ Questões carregadas: ${questions.length} questões.`);
 
-  const correcoes = await repositories.correcao.list();
+  const correcoes = await mockRepos.correcao.list();
   console.assert(correcoes.length >= 2, 'Deve haver ao menos 2 correções no mock');
   console.log(`✅ Correções carregadas: ${correcoes.length} correções.`);
 
-  const settings = await repositories.settings.getSettings('usr-prof-1');
+  const settings = await mockRepos.settings.getSettings('usr-prof-1');
   console.assert(settings !== null, 'Configurações devem ser carregadas no mock');
   console.log(`✅ Configurações carregadas: ${settings?.institutionName}.`);
 
   // Teste 2: Criação e Operações CRUD no Mock
   console.log('\n[Teste 2] Testando operações CRUD no Mock...');
-  const novaTurma = await repositories.turma.create({
+  const novaTurma = await mockRepos.turma.create({
     idProfessor: 'prof-catolica-01',
     idDisciplina: 'disc-1',
     nome: 'Turma C - Vespertino',

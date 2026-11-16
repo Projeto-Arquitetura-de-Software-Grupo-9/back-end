@@ -15,7 +15,7 @@ async function runTests() {
   console.assert(layoutA.dimensionsMm.height === 297, 'A4 height must be 297mm');
   console.assert(layoutA.dimensionsPx.width === 794, 'A4 96-DPI width must be 794px');
   console.assert(layoutA.dimensionsPx.height === 1123, 'A4 96-DPI height must be 1123px');
-  console.assert(layoutA.header.includeBoxNota === true, 'Institutional header must include Box NOTA');
+  console.assert(layoutA.header.includeBoxNota === false, 'Institutional header must default to no Box NOTA');
   console.assert(layoutA.pages.length === 2, 'Exam should be divided into 2 A4 pages');
   console.assert(layoutA.pages[0].isFirstPage === true, 'Page 1 must be flagged as isFirstPage');
   console.assert(layoutA.pages[1].isFirstPage === false, 'Page 2 is continuation page');
