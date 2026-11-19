@@ -13,19 +13,7 @@ export * from './interfaces/IExamRepository';
 export * from './interfaces/IExamVariationRepository';
 export * from './interfaces/IQrCodeRepository';
 
-// Mock Implementations
-import { MockProfessorRepository } from './mock/MockProfessorRepository';
-import { MockDisciplinaRepository } from './mock/MockDisciplinaRepository';
-import { MockTurmaRepository } from './mock/MockTurmaRepository';
-import { MockCorrecaoRepository } from './mock/MockCorrecaoRepository';
-import { MockStudentRepository } from './mock/MockStudentRepository';
-import { MockQuestionRepository } from './mock/MockQuestionRepository';
-import { MockSettingsRepository } from './mock/MockSettingsRepository';
-import { MockExamRepository } from './mock/MockExamRepository';
-import { MockExamVariationRepository } from './mock/MockExamVariationRepository';
-import { MockQrCodeRepository } from './mock/MockQrCodeRepository';
-
-// Prisma Implementations
+// Prisma Implementations (MySQL / TiDB Cloud)
 import { PrismaProfessorRepository } from './prisma/PrismaProfessorRepository';
 import { PrismaDisciplinaRepository } from './prisma/PrismaDisciplinaRepository';
 import { PrismaTurmaRepository } from './prisma/PrismaTurmaRepository';
@@ -37,38 +25,29 @@ import { PrismaExamRepository } from './prisma/PrismaExamRepository';
 import { PrismaExamVariationRepository } from './prisma/PrismaExamVariationRepository';
 import { PrismaQrCodeRepository } from './prisma/PrismaQrCodeRepository';
 
-export type DataSourceType = 'mock' | 'database';
-
-let activeDataSource: DataSourceType = (process.env.DATA_SOURCE as DataSourceType) || 'database';
+export type DataSourceType = 'database';
 
 export function getActiveDataSource(): DataSourceType {
-  return activeDataSource;
-}
-
-export function setActiveDataSource(source: DataSourceType) {
-  activeDataSource = source;
+  return 'database';
 }
 
 /**
- * Repository Factory / Dependency Injection Provider
- * Para alternar entre Mock e Database, basta definir DATA_SOURCE="database" no .env
- * ou chamar setActiveDataSource('database').
+ * Repository Factory / Dependency Injection Provider.
+ * Opera exclusivamente sobre o banco de dados relacional via Prisma ORM (sem mocks).
  */
-export function createRepositories(source: DataSourceType = activeDataSource) {
-  const isDb = source === 'database';
-
+export function createRepositories() {
   return {
-    source,
-    professor: isDb ? new PrismaProfessorRepository() : new MockProfessorRepository(),
-    disciplina: isDb ? new PrismaDisciplinaRepository() : new MockDisciplinaRepository(),
-    turma: isDb ? new PrismaTurmaRepository() : new MockTurmaRepository(),
-    correcao: isDb ? new PrismaCorrecaoRepository() : new MockCorrecaoRepository(),
-    student: isDb ? new PrismaStudentRepository() : new MockStudentRepository(),
-    question: isDb ? new PrismaQuestionRepository() : new MockQuestionRepository(),
-    settings: isDb ? new PrismaSettingsRepository() : new MockSettingsRepository(),
-    examLayout: isDb ? new PrismaExamRepository() : new MockExamRepository(),
-    examVariation: isDb ? new PrismaExamVariationRepository() : new MockExamVariationRepository(),
-    qrCode: isDb ? new PrismaQrCodeRepository() : new MockQrCodeRepository(),
+    source: 'database' as DataSourceType,
+    professor: new PrismaProfessorRepository(),
+    disciplina: new PrismaDisciplinaRepository(),
+    turma: new PrismaTurmaRepository(),
+    correcao: new PrismaCorrecaoRepository(),
+    student: new PrismaStudentRepository(),
+    question: new PrismaQuestionRepository(),
+    settings: new PrismaSettingsRepository(),
+    examLayout: new PrismaExamRepository(),
+    examVariation: new PrismaExamVariationRepository(),
+    qrCode: new PrismaQrCodeRepository(),
   };
 }
 

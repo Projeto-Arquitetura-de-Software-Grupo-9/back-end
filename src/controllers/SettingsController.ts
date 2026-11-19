@@ -1,12 +1,29 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { ISettingsService } from '../services/interfaces/ISettingsService';
+import { getJwtSecret } from '../middlewares/authMiddleware';
+
+function resolveTeacherId(req: Request): string {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.slice(7).trim(), getJwtSecret()) as { id?: string };
+      if (decoded?.id) return decoded.id;
+    } catch {
+      // ignore invalid token here, fall through to explicit teacherId
+    }
+  }
+  const fromQuery = typeof req.query?.teacherId === 'string' ? req.query.teacherId.trim() : '';
+  const fromBody = typeof req.body?.teacherId === 'string' ? req.body.teacherId.trim() : '';
+  return fromQuery || fromBody || 'institutional-default';
+}
 
 export class SettingsController {
   constructor(private readonly settingsService: ISettingsService) {}
 
   getSettings = async (req: Request, res: Response): Promise<void> => {
     try {
-      const teacherId = (req.query.teacherId as string) || 'usr-prof-1';
+      const teacherId = resolveTeacherId(req);
       const settings = await this.settingsService.getSettings(teacherId);
 
       res.status(200).json({
@@ -23,7 +40,7 @@ export class SettingsController {
 
   updateSettings = async (req: Request, res: Response): Promise<void> => {
     try {
-      const teacherId = (req.body.teacherId as string) || 'usr-prof-1';
+      const teacherId = resolveTeacherId(req);
       const updated = await this.settingsService.updateSettings(
         teacherId,
         req.body
@@ -44,7 +61,7 @@ export class SettingsController {
 
   resetSettings = async (req: Request, res: Response): Promise<void> => {
     try {
-      const teacherId = (req.body?.teacherId as string) || 'usr-prof-1';
+      const teacherId = resolveTeacherId(req);
       const reset = await this.settingsService.resetSettings(teacherId);
 
       res.status(200).json({
@@ -62,7 +79,7 @@ export class SettingsController {
 
   anonymizeTeacher = async (req: Request, res: Response): Promise<void> => {
     try {
-      const teacherId = (req.body?.teacherId as string) || 'usr-prof-1';
+      const teacherId = resolveTeacherId(req);
       const result = await this.settingsService.anonymizeTeacher(teacherId);
 
       res.status(200).json({

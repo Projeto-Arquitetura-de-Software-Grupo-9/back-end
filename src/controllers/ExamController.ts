@@ -26,6 +26,7 @@ const examDraftSchema = z.object({
   selectedQuestions: z.array(z.object({
     id: z.string().trim().min(1),
     statement: z.string().trim().min(1),
+    type: z.enum(['objetiva', 'discursiva']).optional(),
     discipline: z.string().trim().optional(),
     topic: z.string().trim().optional(),
     difficulty: z.string().trim().optional(),
@@ -33,8 +34,8 @@ const examDraftSchema = z.object({
       id: z.string().trim().min(1),
       letter: z.enum(['A', 'B', 'C', 'D', 'E']),
       text: z.string(),
-    })).min(2).max(5),
-    correctAlternative: z.enum(['A', 'B', 'C', 'D', 'E']),
+    })).max(5).default([]),
+    correctAlternative: z.enum(['A', 'B', 'C', 'D', 'E']).optional(),
   }).passthrough()).max(100).optional(),
   shuffleQuestions: z.boolean().optional(),
   shuffleAlternatives: z.boolean().optional(),
@@ -53,19 +54,19 @@ async function validateSelectedQuestions(ids: string[] | undefined): Promise<str
   const uniqueIds = [...new Set(ids)];
   if (uniqueIds.length !== ids.length) throw new Error('A prova não pode conter questões repetidas.');
 
-  try {
-    const questions = await prisma.question.findMany({
-      where: { id: { in: uniqueIds }, deletedAt: null },
-      select: { id: true, type: true, alternatives: { select: { id: true } } },
-    });
-    if (questions.length === uniqueIds.length) {
-      if (questions.some((question) => question.type !== 'objetiva' || question.alternatives.length < 2)) {
-        throw new Error('A geração de cadernos aceita questões objetivas com pelo menos duas alternativas.');
-      }
-      return uniqueIds;
-    }
-  } catch {
-    // In mock mode or DB error, fall back to question repo if needed
+  const questions = await prisma.question.findMany({
+    where: { id: { in: uniqueIds }, deletedAt: null },
+    select: { id: true, type: true, alternatives: { select: { id: true } } },
+  });
+  if (questions.length !== uniqueIds.length) {
+    throw new Error('Uma ou mais questões selecionadas não existem no banco de dados.');
+  }
+  if (
+    questions.some(
+      (question) => question.type === 'objetiva' && question.alternatives.length < 2
+    )
+  ) {
+    throw new Error('Questões objetivas devem possuir pelo menos duas alternativas.');
   }
   return uniqueIds;
 }
@@ -75,8 +76,16 @@ function validateQuestionSnapshot(ids: string[] | undefined, questions: z.infer<
   if (!ids || questions.length !== ids.length || questions.some((question, index) => question.id !== ids[index])) {
     throw new Error('As questões enviadas não correspondem à seleção da prova.');
   }
-  if (questions.some((question) => !question.alternatives.some((alternative) => alternative.letter === question.correctAlternative))) {
-    throw new Error('Cada questão precisa ter a alternativa correta entre as opções enviadas.');
+  if (
+    questions.some(
+      (question) =>
+        question.type !== 'discursiva' &&
+        question.alternatives.length > 0 &&
+        (!question.correctAlternative ||
+          !question.alternatives.some((alternative) => alternative.letter === question.correctAlternative))
+    )
+  ) {
+    throw new Error('Cada questão objetiva precisa ter a alternativa correta entre as opções enviadas.');
   }
 }
 
@@ -88,6 +97,7 @@ function examConfiguration(body: Partial<z.infer<typeof examDraftSchema>>, exist
     ...previous,
     selectedQuestionIds: body.selectedQuestionIds ?? previous.selectedQuestionIds ?? [],
     selectedQuestions: body.selectedQuestions ?? previous.selectedQuestions ?? [],
+    ...(Array.isArray((body as any).versions) ? { versions: (body as any).versions } : {}),
     shuffleQuestions: body.shuffleQuestions ?? previous.shuffleQuestions ?? true,
     shuffleAlternatives: body.shuffleAlternatives ?? previous.shuffleAlternatives ?? true,
     numberOfVersions: body.numberOfVersions ?? previous.numberOfVersions ?? 4,

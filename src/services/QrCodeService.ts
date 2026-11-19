@@ -79,16 +79,33 @@ export class QrCodeService implements IQrCodeService {
     try {
       const parsed: QrCodePayloadStructure = JSON.parse(dto.qrCodePayload);
 
-      if (!parsed.appId || !parsed.vId || !parsed.ver || !parsed.chk) {
+      if (!parsed.appId || !parsed.vId || !parsed.ver || !parsed.chk || typeof parsed.ts !== 'number') {
         return {
           isValid: false,
           checksumMatch: false,
-          errorMessage: 'Payload JSON com campos obrigatórios ausentes (appId, vId, ver, chk).',
+          errorMessage: 'Payload JSON com campos obrigatórios ausentes (appId, vId, ver, ts, chk).',
         };
       }
 
-      // Check if registered in repository
-      const existing = await this.repository.findByPayload(dto.qrCodePayload);
+      // Recompute anti-tamper SHA-256 checksum
+      const rawCheckData = `${parsed.appId}:${parsed.vId}:${parsed.ver}:${parsed.stdId || 'anon'}:${parsed.ts}`;
+      const expectedChecksum = crypto
+        .createHash('sha256')
+        .update(rawCheckData)
+        .digest('hex')
+        .substring(0, 8);
+
+      const checksumMatch = expectedChecksum === parsed.chk;
+      if (!checksumMatch) {
+        return {
+          isValid: false,
+          checksumMatch: false,
+          errorMessage: 'Checksum SHA-256 inválido: QR Code adulterado ou corrompido.',
+        };
+      }
+
+      // Optional verification against repository registry
+      await this.repository.findByPayload(dto.qrCodePayload);
 
       return {
         isValid: true,

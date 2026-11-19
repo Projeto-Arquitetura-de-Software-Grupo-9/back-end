@@ -1,5 +1,22 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { ITurmaRepository } from '../repositories/interfaces/ITurmaRepository';
+import { getJwtSecret } from '../middlewares/authMiddleware';
+
+function resolveProfessorId(req: Request): string | undefined {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.slice(7).trim(), getJwtSecret()) as { id?: string };
+      if (decoded?.id) return decoded.id;
+    } catch {
+      // ignore
+    }
+  }
+  return typeof req.body?.idProfessor === 'string' && req.body.idProfessor.trim()
+    ? req.body.idProfessor.trim()
+    : undefined;
+}
 
 export class TurmaController {
   constructor(private readonly repo: ITurmaRepository) {}
@@ -30,13 +47,18 @@ export class TurmaController {
 
   create = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { idProfessor, idDisciplina, nome, periodoLetivo, status } = req.body;
+      const { idDisciplina, nome, periodoLetivo, status } = req.body;
+      const idProfessor = resolveProfessorId(req);
       if (!nome || !idDisciplina || !periodoLetivo) {
         res.status(400).json({ success: false, error: 'Campos nome, idDisciplina e periodoLetivo são obrigatórios.' });
         return;
       }
+      if (!idProfessor) {
+        res.status(400).json({ success: false, error: 'Identificação do professor (idProfessor ou token) é obrigatória.' });
+        return;
+      }
       const data = await this.repo.create({
-        idProfessor: idProfessor || 'prof-catolica-01',
+        idProfessor,
         idDisciplina,
         nome,
         periodoLetivo,

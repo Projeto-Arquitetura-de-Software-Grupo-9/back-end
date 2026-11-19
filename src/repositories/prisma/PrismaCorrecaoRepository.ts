@@ -58,15 +58,48 @@ export class PrismaCorrecaoRepository implements ICorrecaoRepository {
     if (!v) {
       const examExists = await prisma.exam.findUnique({
         where: { id: examId },
-        select: { id: true, code: true },
+        select: { id: true, code: true, variationsJson: true },
       });
       if (examExists) {
+        const cfg =
+          examExists.variationsJson && typeof examExists.variationsJson === 'object' && !Array.isArray(examExists.variationsJson)
+            ? (examExists.variationsJson as Record<string, any>)
+            : {};
+
+        let questionsLayout: any[] = [];
+        const answerKey: Record<number, string> = {};
+
+        // Try matching a version inside variationsJson.versions or generatedVariations.versions
+        const storedVersions: any[] = Array.isArray(cfg.versions)
+          ? cfg.versions
+          : Array.isArray(cfg.generatedVariations?.versions)
+          ? cfg.generatedVariations.versions
+          : [];
+        const matchedStored = storedVersions.find(
+          (sv: any) => String(sv?.versionLetter || '').toUpperCase() === versionLetter.toUpperCase()
+        );
+
+        if (matchedStored) {
+          questionsLayout = Array.isArray(matchedStored.questions) ? matchedStored.questions : [];
+          if (matchedStored.answerKey && typeof matchedStored.answerKey === 'object') {
+            Object.assign(answerKey, matchedStored.answerKey);
+          }
+        } else if (Array.isArray(cfg.selectedQuestions) && cfg.selectedQuestions.length > 0) {
+          questionsLayout = cfg.selectedQuestions;
+          let objIdx = 1;
+          for (const q of cfg.selectedQuestions) {
+            if (q?.type !== 'discursiva' && q?.correctAlternative) {
+              answerKey[objIdx++] = String(q.correctAlternative).toUpperCase();
+            }
+          }
+        }
+
         v = await prisma.examVersion.create({
           data: {
             examId,
             versionLetter,
-            questionsLayout: [],
-            answerKey: {},
+            questionsLayout,
+            answerKey,
             qrCodePayload: JSON.stringify({
               app: 'CORREGE',
               examId,

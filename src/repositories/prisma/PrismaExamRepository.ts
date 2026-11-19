@@ -38,6 +38,28 @@ export class PrismaExamRepository implements IExamRepository {
     } as ExamRecordDTO;
   }
 
+  private async syncVersionsFromConfig(examId: string, examCode: string, variationsJson: unknown): Promise<void> {
+    if (!variationsJson || typeof variationsJson !== 'object' || Array.isArray(variationsJson)) return;
+    const cfg = variationsJson as Record<string, any>;
+    const versions = Array.isArray(cfg.versions) ? cfg.versions : [];
+    for (const v of versions) {
+      const versionLetter = String(v?.versionLetter || '').trim().toUpperCase();
+      if (!/^[A-Z]$/.test(versionLetter)) continue;
+      const questionsLayout = Array.isArray(v.questions) ? v.questions : [];
+      const answerKey = v.answerKey && typeof v.answerKey === 'object' ? v.answerKey : {};
+      const qrCodePayload =
+        typeof v.qrCodePayload === 'string' && v.qrCodePayload
+          ? v.qrCodePayload
+          : JSON.stringify({ app: 'CORREGE', examId, code: examCode, ver: versionLetter });
+
+      await prisma.examVersion.upsert({
+        where: { examId_versionLetter: { examId, versionLetter } },
+        update: { questionsLayout, answerKey, qrCodePayload },
+        create: { examId, versionLetter, questionsLayout, answerKey, qrCodePayload },
+      });
+    }
+  }
+
   async createExam(data: CreateExamDTO): Promise<ExamRecordDTO> {
     const created = await prisma.exam.create({
       data: {
@@ -60,9 +82,15 @@ export class PrismaExamRepository implements IExamRepository {
       },
       include: { versions: true, disciplinaRef: true },
     });
+    await this.syncVersionsFromConfig(created.id, created.code, data.variationsJson);
+    const refreshed = await prisma.exam.findUnique({
+      where: { id: created.id },
+      include: { versions: true, disciplinaRef: true },
+    });
+    const row = refreshed || created;
     return {
-      ...created,
-      instructions: Array.isArray(created.instructions) ? (created.instructions as string[]) : [],
+      ...row,
+      instructions: Array.isArray(row.instructions) ? (row.instructions as string[]) : [],
     } as ExamRecordDTO;
   }
 
@@ -88,9 +116,17 @@ export class PrismaExamRepository implements IExamRepository {
       },
       include: { versions: true, disciplinaRef: true },
     });
+    if (data.variationsJson !== undefined) {
+      await this.syncVersionsFromConfig(updated.id, updated.code, data.variationsJson);
+    }
+    const refreshed = await prisma.exam.findUnique({
+      where: { id: updated.id },
+      include: { versions: true, disciplinaRef: true },
+    });
+    const row = refreshed || updated;
     return {
-      ...updated,
-      instructions: Array.isArray(updated.instructions) ? (updated.instructions as string[]) : [],
+      ...row,
+      instructions: Array.isArray(row.instructions) ? (row.instructions as string[]) : [],
     } as ExamRecordDTO;
   }
 
@@ -141,32 +177,69 @@ export class PrismaExamRepository implements IExamRepository {
       },
     });
 
-    if (version && Array.isArray(version.questionsLayout)) {
+    if (version && Array.isArray(version.questionsLayout) && version.questionsLayout.length > 0) {
       return version.questionsLayout as unknown as ExamQuestionLayoutDTO[];
     }
 
-    // Fallback to questions in DB if examVersion isn't found
-    const dbQuestions = await prisma.question.findMany({
-      where: { deletedAt: null, type: 'objetiva' },
-      include: { alternatives: { orderBy: { letter: 'asc' } } },
-      take: 5,
-      orderBy: { createdAt: 'asc' },
+    // Resolve strictly from this exam's own variationsJson (never grab random unrelated DB questions)
+    const exam = await prisma.exam.findUnique({
+      where: { id },
+      select: { variationsJson: true },
     });
+    const config =
+      exam?.variationsJson && typeof exam.variationsJson === 'object' && !Array.isArray(exam.variationsJson)
+        ? (exam.variationsJson as Record<string, unknown>)
+        : {};
 
-    return dbQuestions.map((q, idx) => ({
-      id: q.id,
-      originalQuestionId: q.id,
-      orderIndex: idx + 1,
-      statement: q.statement,
-      discipline: q.discipline,
-      alternatives: q.alternatives.map((a) => ({
-        id: a.id,
-        letter: a.letter as 'A' | 'B' | 'C' | 'D' | 'E',
-        text: a.text,
-      })),
-      correctAlternative: q.correctAlternative as 'A' | 'B' | 'C' | 'D' | 'E',
-      pointValue: q.points,
-    }));
+    if (Array.isArray(config.selectedQuestions) && config.selectedQuestions.length > 0) {
+      return (config.selectedQuestions as Array<Record<string, any>>).map((q, idx) => ({
+        id: String(q.id || `q-${idx + 1}`),
+        originalQuestionId: String(q.originalQuestionId || q.id || `q-${idx + 1}`),
+        orderIndex: Number(q.orderIndex) || idx + 1,
+        statement: String(q.statement || ''),
+        discipline: String(q.discipline || ''),
+        alternatives: Array.isArray(q.alternatives)
+          ? q.alternatives.map((a: any, aIdx: number) => ({
+              id: String(a.id || `alt-${aIdx}`),
+              letter: (a.letter || String.fromCharCode(65 + aIdx)) as 'A' | 'B' | 'C' | 'D' | 'E',
+              text: String(a.text || ''),
+            }))
+          : [],
+        correctAlternative: (q.correctAlternative || 'A') as 'A' | 'B' | 'C' | 'D' | 'E',
+        pointValue: Number(q.points ?? q.pointValue ?? 1.0),
+      }));
+    }
+
+    const selectedIds = Array.isArray(config.selectedQuestionIds)
+      ? config.selectedQuestionIds.filter((qid): qid is string => typeof qid === 'string')
+      : [];
+    if (selectedIds.length === 0) {
+      return [];
+    }
+
+    const dbQuestions = await prisma.question.findMany({
+      where: { id: { in: selectedIds }, deletedAt: null },
+      include: { alternatives: { orderBy: { letter: 'asc' } } },
+    });
+    const byId = new Map(dbQuestions.map((q) => [q.id, q]));
+
+    return selectedIds
+      .map((qid) => byId.get(qid))
+      .filter((q): q is NonNullable<typeof q> => Boolean(q))
+      .map((q, idx) => ({
+        id: q.id,
+        originalQuestionId: q.id,
+        orderIndex: idx + 1,
+        statement: q.statement,
+        discipline: q.discipline,
+        alternatives: q.alternatives.map((a) => ({
+          id: a.id,
+          letter: a.letter as 'A' | 'B' | 'C' | 'D' | 'E',
+          text: a.text,
+        })),
+        correctAlternative: q.correctAlternative as 'A' | 'B' | 'C' | 'D' | 'E',
+        pointValue: q.points,
+      }));
   }
 
   async getExamLayout(

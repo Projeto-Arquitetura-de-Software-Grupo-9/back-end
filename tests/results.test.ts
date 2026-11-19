@@ -6,11 +6,10 @@ import { buildReport, exportReport, ReportInput } from '../src/services/ReportSe
 import { answerSheetSchema, generateAnswerSheets } from '../src/services/AnswerSheetPdfService';
 import { createReportRouter } from '../src/routes/reportRoutes';
 import { createAnswerSheetRouter } from '../src/routes/answerSheetRoutes';
-import { createApp } from '../src/app';
-import { setActiveDataSource, getActiveDataSource } from '../src/repositories';
+import { getActiveDataSource } from '../src/repositories';
 import { ExamPdfService } from '../src/services/ExamPdfService';
-import { MockExamRepository } from '../src/repositories/mock/MockExamRepository';
 import { createExamExportRouter } from '../src/routes/examExportRoutes';
+import { TestExamRepository } from './helpers/inMemoryRepositories';
 
 const correction = (id: string, student: string | null, score: number, answers: Record<string, string>, date = '2026-10-28') => ({
   id, idAluno: student, nomeManuscrito: null, matriculaManuscrita: null, notaTotal: score,
@@ -25,6 +24,45 @@ const fixture: ReportInput = { id: 'exam-test', title: 'Prova de teste', version
   { id: 'vb', versionLetter: 'B', answerKey: { 1: 'D', 2: 'B' }, correcoes: [correction('b', 's2', 6, { 1: 'D', 2: 'X' })] },
 ] };
 
+function makeExamRepo() {
+  return new TestExamRepository(
+    [
+      {
+        id: 'exam-catolica-01',
+        code: '#DIR-01',
+        title: 'Avaliação Teste',
+        subtitle: '2026.1',
+        institution: 'Católica SC',
+        department: 'Direito',
+        course: 'Direito',
+        discipline: 'Direito Constitucional',
+        classGroup: 'Turma A',
+        semester: '2026.1',
+        date: '20/10/2026',
+        duration: '2 horas',
+        instructions: ['Instrução padrão'],
+        includeBoxNota: false,
+        createdAt: new Date(),
+      },
+    ],
+    Array.from({ length: 5 }, (_, i) => ({
+      id: `q-${i + 1}`,
+      originalQuestionId: `q-${i + 1}`,
+      orderIndex: i + 1,
+      statement: `Enunciado ${i + 1}`,
+      discipline: 'Direito Constitucional',
+      alternatives: [
+        { id: `a-${i}-1`, letter: 'A', text: 'Alt A' },
+        { id: `a-${i}-2`, letter: 'B', text: 'Alt B' },
+        { id: `a-${i}-3`, letter: 'C', text: 'Alt C' },
+        { id: `a-${i}-4`, letter: 'D', text: 'Alt D' },
+      ],
+      correctAlternative: 'A',
+      pointValue: 2.0,
+    }))
+  );
+}
+
 test('latest correction, version-specific keys, blank answers and pending identities', () => {
   const r = buildReport(fixture);
   assert.equal(r.metrics.count, 2); assert.equal(r.metrics.average, 7);
@@ -36,40 +74,47 @@ test('latest correction, version-specific keys, blank answers and pending identi
   assert.equal(r.versions[1].questions[1].blankCount, 1);
   assert.equal(r.versions[0].questions[0].total, 1);
 });
+
 test('empty reports have null statistics and invalid keys cannot appear healthy', () => {
   const r = buildReport({ ...fixture, versions: [] });
   assert.equal(r.metrics.average, null); assert.equal(r.metrics.median, null);
   assert.throws(() => buildReport({ ...fixture, versions: [{ ...fixture.versions[0], answerKey: {} }] }));
 });
-test('xlsx can be reopened and preserves grades, matrices and registration as text', async () => {
+
+test('xlsx can be reopened and preserves grades, matrices, database origin and registration as text', async () => {
   const bytes = await exportReport(buildReport(fixture));
   const book = new ExcelJS.Workbook(); await book.xlsx.load(bytes);
   assert.equal(book.worksheets.length, 5);
   assert.equal(book.getWorksheet('Resumo')!.getCell('B4').value, 7);
+  assert.equal(book.getWorksheet('Resumo')!.getCell('B10').value, 'Banco de dados');
   const sheet = book.getWorksheet('Caderno 1')!;
   assert.equal(sheet.getCell('B4').value, '00123');
   assert.equal(sheet.getCell('D4').value, 8);
   assert.equal(sheet.getCell('G4').value, 'Em branco/inválida');
   assert.deepEqual(sheet.getCell('F4').fill, { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } });
 });
+
 const sheet = (count: number) => answerSheetSchema.parse({ title: 'Avaliação de teste', code: 'TEST-01',
   versionLetter: 'B', qrCodePayload: JSON.stringify({ examId: 'exam-test', ver: 'B' }),
   questions: Array.from({ length: count }, (_, i) => ({ orderIndex: i + 1, letters: ['A', 'B', 'C', 'D', 'E'] })), copies: 2,
 });
+
 test('PDF export handles 1 and 100 questions, copies and personalized batches', async () => {
   for (const n of [1, 100]) {
     const bytes = await generateAnswerSheets(sheet(n));
     assert.equal(bytes.subarray(0, 5).toString(), '%PDF-');
     assert.equal((bytes.toString('latin1').match(/\/Type \/Page\b/g) || []).length, 2);
   }
-  const bytes = await generateAnswerSheets({ ...sheet(10), students: [{ name: 'Bruno', registration: '00001' }] });
+  const bytes = await generateAnswerSheets({ ...sheet(10), students: [{ name: 'Estudante', registration: '00001' }] });
   assert.equal((bytes.toString('latin1').match(/\/Type \/Page\b/g) || []).length, 1);
   assert.equal(answerSheetSchema.safeParse({ ...sheet(1), copies: 201 }).success, false);
   assert.equal(answerSheetSchema.safeParse({ ...sheet(1), questions: [] }).success, false);
 });
+
 test('HTTP report/download routes return real files and meaningful missing-data responses', async () => {
+  assert.equal(getActiveDataSource(), 'database');
   const app = express(); app.use(express.json());
-  app.use('/reports', createReportRouter(async id => id === fixture.id ? fixture : null));
+  app.use('/reports', createReportRouter(async id => id === fixture.id ? fixture : null, async () => [{ id: fixture.id, title: fixture.title }]));
   app.use('/answer-sheets', createAnswerSheetRouter());
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', resolve));
@@ -89,8 +134,8 @@ test('HTTP report/download routes return real files and meaningful missing-data 
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });
 
-test('current exam PDFs have the declared physical page count after the team footer fix', async () => {
-  const service = new ExamPdfService(new MockExamRepository());
+test('current exam PDFs have the declared physical page count', async () => {
+  const service = new ExamPdfService(makeExamRepo());
   for (const options of [
     { includeAnswerSheet: false, isDuplex: false },
     { includeAnswerSheet: true, isDuplex: false },
@@ -112,36 +157,12 @@ test('mixed-version nominal PDF batch preserves per-sheet versions and clean dup
   assert.equal(answerSheetSchema.safeParse({ ...sheet(1), versionLetter: 'AA' }).success, false);
 });
 
-test('assembled application serves demonstration reports and Excel without database or camera', async () => {
-  const previous = getActiveDataSource();
-  setActiveDataSource('mock');
-  const server = createApp().listen(0, '127.0.0.1');
-  await new Promise<void>(resolve => server.once('listening', resolve));
-  const address = server.address() as { port: number };
-  const base = `http://127.0.0.1:${address.port}/api/v1/reports`;
-  try {
-    const list = await (await fetch(base)).json();
-    assert.equal(list.dataSource, 'mock'); assert.ok(list.data.length);
-    const response = await fetch(`${base}/${list.data[0].id}/results`);
-    assert.equal(response.status, 200);
-    const report = (await response.json()).data;
-    assert.equal(report.dataSource, 'mock'); assert.ok(report.versions.length);
-    const file = await fetch(`${base}/${list.data[0].id}/results?format=xlsx`);
-    assert.equal(file.status, 200);
-    const book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await file.arrayBuffer()) as never);
-    assert.match(String(book.getWorksheet('Resumo')!.getCell('B10').value), /DEMONSTRAÇÃO/);
-  } finally {
-    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
-    setActiveDataSource(previous);
-  }
-});
-
 test('preview PDF exports a locally supplied exam without persistence', async () => {
   const app = express(); app.use(express.json()); app.use('/export', createExamExportRouter());
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/export/pdf`;
-  const layout = await new MockExamRepository().getExamLayout('exam-catolica-01', 'A');
+  const layout = await makeExamRepo().getExamLayout('exam-catolica-01', 'A');
   try {
     const response = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       examId: 'local-not-saved', versionLetter: 'Z', header: layout!.header, pages: layout!.pages.map(p => ({ questions: p.questions })),

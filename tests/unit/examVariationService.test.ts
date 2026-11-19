@@ -1,92 +1,103 @@
-import { MockExamVariationRepository } from '../../src/repositories/mock/MockExamVariationRepository';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { TestExamVariationRepository } from '../helpers/inMemoryRepositories';
 import { ExamVariationService } from '../../src/services/ExamVariationService';
+import { VariationQuestionDTO } from '../../src/types/examVariation.dto';
 
-async function runTests() {
-  console.log('🧪 Starting Exam Variation (Criar Provas Diferentes) Unit Tests...');
-  const repo = new MockExamVariationRepository();
-  const service = new ExamVariationService(repo);
-
-  // Test 1: Generate 4 Distinct Cadernos
-  console.log('\n[Test 1] Generating 4 distinct versions with question & alternative shuffling...');
-  const result = await service.generateVariations({
-    examId: 'exam-calculo-01',
-    numberOfVersions: 4,
-    shuffleQuestions: true,
-    shuffleAlternatives: true,
-    strategy: 'FISHER_YATES',
-  });
-
-  console.assert(result.numberOfVersions === 4, 'Must generate 4 versions');
-  console.assert(result.versions.length === 4, 'Must have 4 version results');
-  console.assert(result.versions[0].versionLetter === 'A', 'First version must be A');
-  console.assert(result.versions[1].versionLetter === 'B', 'Second version must be B');
-  console.assert(result.versions[2].versionLetter === 'C', 'Third version must be C');
-  console.assert(result.versions[3].versionLetter === 'D', 'Fourth version must be D');
-
-  // Verify Caderno A vs Caderno B question order difference
-  const qIdsA = result.versions[0].questions.map((q) => q.originalQuestionId);
-  const qIdsB = result.versions[1].questions.map((q) => q.originalQuestionId);
-  console.assert(
-    JSON.stringify(qIdsA) !== JSON.stringify(qIdsB),
-    'Caderno B question order must be shuffled from Caderno A'
-  );
-  console.log('✅ Test 1 Passed: 4 distinct Cadernos generated with permuted question orders.');
-
-  // Test 2: Semantic Integrity of Answer Key when Alternatives Shuffle
-  console.log('\n[Test 2] Verifying Semantic Answer Key preservation across shuffled alternatives...');
-  // For question q-101: In base repository, statement is "A Constituição Federal de 1988 estabelece..."
-  // Correct answer text is: "O pluripartidarismo e a soberania nacional."
-  const baseQuestions = await repo.getBaseQuestions('exam-calculo-01');
-  const targetOriginalQ = baseQuestions.find((q) => q.originalQuestionId === 'q-101')!;
-  const expectedCorrectText = targetOriginalQ.alternatives.find(
-    (a) => a.letter === targetOriginalQ.correctAlternative
-  )!.text;
-
-  // Now check every version: the alternative marked as correct MUST have the exact expected text!
-  for (const version of result.versions) {
-    const qInVersion = version.questions.find((q) => q.originalQuestionId === 'q-101')!;
-    const correctLetter = version.answerKey[qInVersion.orderIndex];
-    const actualCorrectAlt = qInVersion.alternatives.find((a) => a.letter === correctLetter)!;
-
-    console.assert(
-      actualCorrectAlt.text === expectedCorrectText,
-      `In version ${version.versionLetter}, correct alternative must contain the correct text regardless of position`
-    );
-  }
-  console.log('✅ Test 2 Passed: Semantic answer key remains 100% accurate across all alternative shuffles.');
-
-  // Test 3: Cross-Answer-Key Matrix
-  console.log('\n[Test 3] Validating Cross-Answer-Key Matrix generation...');
-  console.assert(result.crossAnswerKeyMatrix.length === 4, 'Matrix must have an entry for each original question');
-  const matrixEntry = result.crossAnswerKeyMatrix[0];
-  console.assert(matrixEntry.orderIndexA !== undefined, 'Matrix must track index in Version A');
-  console.assert(matrixEntry.correctLetterA !== undefined, 'Matrix must track correct letter in Version A');
-  console.assert(matrixEntry.orderIndexB !== undefined, 'Matrix must track index in Version B');
-  console.assert(matrixEntry.correctLetterB !== undefined, 'Matrix must track correct letter in Version B');
-  console.log('✅ Test 3 Passed: Cross-Answer-Key Matrix generated with complete cross-version mapping.');
-
-  // Test 4: Student Round-Robin Assignment
-  console.log('\n[Test 4] Testing Student Distribution across Cadernos...');
-  const sampleStudents = [
-    { id: 's1', name: 'Amanda Dolores', registration: '2024.1.001' },
-    { id: 's2', name: 'Bruno Cortela', registration: '2024.1.002' },
-    { id: 's3', name: 'Cleber Santana', registration: '2024.1.003' },
-    { id: 's4', name: 'Daniela Lima', registration: '2024.1.004' },
-    { id: 's5', name: 'Eduardo Ramos', registration: '2024.1.005' },
+function makeVariationQuestions(): VariationQuestionDTO[] {
+  return [
+    {
+      originalQuestionId: 'q-101',
+      orderIndex: 1,
+      statement: 'A Constituição Federal de 1988 estabelece como fundamento:',
+      discipline: 'Direito Constitucional',
+      alternatives: [
+        { id: '1a', letter: 'A', text: 'Opção incorreta 1' },
+        { id: '1b', letter: 'B', text: 'O pluripartidarismo e a soberania nacional.' },
+        { id: '1c', letter: 'C', text: 'Opção incorreta 2' },
+        { id: '1d', letter: 'D', text: 'Opção incorreta 3' },
+      ],
+      correctAlternative: 'B',
+    },
+    {
+      originalQuestionId: 'q-102',
+      orderIndex: 2,
+      statement: 'Sobre o controle de constitucionalidade:',
+      discipline: 'Direito Constitucional',
+      alternatives: [
+        { id: '2a', letter: 'A', text: 'Controle concentrado pelo STF.' },
+        { id: '2b', letter: 'B', text: 'Alternativa incorreta B' },
+        { id: '2c', letter: 'C', text: 'Alternativa incorreta C' },
+        { id: '2d', letter: 'D', text: 'Alternativa incorreta D' },
+      ],
+      correctAlternative: 'A',
+    },
+    {
+      originalQuestionId: 'q-103',
+      orderIndex: 3,
+      statement: 'Acerca das cláusulas pétreas:',
+      discipline: 'Direito Constitucional',
+      alternatives: [
+        { id: '3a', letter: 'A', text: 'Alternativa incorreta A' },
+        { id: '3b', letter: 'B', text: 'Alternativa incorreta B' },
+        { id: '3c', letter: 'C', text: 'Forma federativa de Estado.' },
+        { id: '3d', letter: 'D', text: 'Alternativa incorreta D' },
+      ],
+      correctAlternative: 'C',
+    },
+    {
+      originalQuestionId: 'q-104',
+      orderIndex: 4,
+      statement: 'Sobre direitos fundamentais:',
+      discipline: 'Direito Constitucional',
+      alternatives: [
+        { id: '4a', letter: 'A', text: 'Alternativa incorreta A' },
+        { id: '4b', letter: 'B', text: 'Alternativa incorreta B' },
+        { id: '4c', letter: 'C', text: 'Alternativa incorreta C' },
+        { id: '4d', letter: 'D', text: 'Aplicação imediata das normas.' },
+      ],
+      correctAlternative: 'D',
+    },
   ];
-
-  const distribution = await service.distributeStudents('exam-calculo-01', sampleStudents);
-  console.assert(distribution.length === 5, 'Must distribute all 5 students');
-  const validVersions = new Set(['A', 'B', 'C', 'D']);
-  distribution.forEach((d) => {
-    console.assert(validVersions.has(d.assignedVersion), `Assigned version ${d.assignedVersion} must be valid`);
-  });
-  console.log('✅ Test 4 Passed: Fisher-Yates student assignment evenly and randomly distributed across cadernos.');
-
-  console.log('\n🎉 ALL 4 EXAM VARIATION UNIT TESTS PASSED!');
 }
 
-runTests().catch((err) => {
-  console.error('❌ Test failed with error:', err);
-  process.exit(1);
+describe('ExamVariationService Unit Tests', () => {
+  it('should permute questions and alternatives while preserving semantic answer key and random distribution', async () => {
+    const repo = new TestExamVariationRepository(makeVariationQuestions());
+    const service = new ExamVariationService(repo);
+
+    const result = await service.generateVariations({
+      examId: 'exam-var-01',
+      numberOfVersions: 4,
+      shuffleQuestions: true,
+      shuffleAlternatives: true,
+      strategy: 'FISHER_YATES',
+    });
+
+    assert.equal(result.versions.length, 4);
+    assert.notDeepEqual(
+      result.versions[0].questions.map((q) => q.originalQuestionId),
+      result.versions[1].questions.map((q) => q.originalQuestionId)
+    );
+
+    const expectedCorrectText = 'O pluripartidarismo e a soberania nacional.';
+    for (const version of result.versions) {
+      const q = version.questions.find((item) => item.originalQuestionId === 'q-101')!;
+      const correctLetter = version.answerKey[q.orderIndex];
+      const alt = q.alternatives.find((a) => a.letter === correctLetter)!;
+      assert.equal(alt.text, expectedCorrectText);
+    }
+
+    assert.equal(result.crossAnswerKeyMatrix.length, 4);
+
+    const sampleStudents = [
+      { id: 's1', name: 'Estudante 1', registration: '2026.1.001' },
+      { id: 's2', name: 'Estudante 2', registration: '2026.1.002' },
+      { id: 's3', name: 'Estudante 3', registration: '2026.1.003' },
+      { id: 's4', name: 'Estudante 4', registration: '2026.1.004' },
+    ];
+    const distribution = await service.distributeStudents('exam-var-01', sampleStudents);
+    assert.equal(distribution.length, 4);
+    assert.equal(new Set(distribution.map((d) => d.assignedVersion)).size, 4);
+  });
 });

@@ -72,37 +72,19 @@ export class PrismaExamVariationRepository implements IExamVariationRepository {
     result: ExamVariationResultDTO
   ): Promise<void> {
     const existingExam = await prisma.exam.findUnique({ where: { id: examId } });
-    if (existingExam) {
-      const previous = existingExam.variationsJson && typeof existingExam.variationsJson === 'object'
-        ? (existingExam.variationsJson as Record<string, unknown>)
-        : {};
-      await prisma.exam.update({
-        where: { id: examId },
-        data: {
-          variationsJson: { ...previous, generatedVariations: result } as any,
-        },
-      });
-    } else {
-      await prisma.exam.create({
-        data: {
-          id: examId,
-          code: `#PROVA-${examId}`,
-          title: `Avaliação ${examId}`,
-          subtitle: 'Semestre Letivo',
-          institution: 'CATÓLICA DE SANTA CATARINA',
-          department: 'Curso de Direito',
-          course: 'Direito',
-          discipline: 'Direito Constitucional',
-          classGroup: 'Turma A',
-          semester: '2026/1',
-          date: new Date().toLocaleDateString('pt-BR'),
-          duration: '2 horas',
-          instructions: ['Marque apenas uma alternativa por questão.'],
-          includeBoxNota: true,
-          variationsJson: result as any,
-        },
-      });
+    if (!existingExam) {
+      throw new Error(`Prova com id "${examId}" não encontrada no banco de dados.`);
     }
+
+    const previous = existingExam.variationsJson && typeof existingExam.variationsJson === 'object'
+      ? (existingExam.variationsJson as Record<string, unknown>)
+      : {};
+    await prisma.exam.update({
+      where: { id: examId },
+      data: {
+        variationsJson: { ...previous, generatedVariations: result } as any,
+      },
+    });
 
     for (const v of result.versions) {
       await prisma.examVersion.upsert({

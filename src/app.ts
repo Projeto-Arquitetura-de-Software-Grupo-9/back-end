@@ -29,6 +29,7 @@ export function createApp() {
       timestamp: new Date().toISOString(),
       dataSource: getActiveDataSource(),
       modules: {
+        auth: 'active (JWT + bcrypt)',
         settings: 'active',
         students: 'active',
         questions: 'active',
@@ -42,13 +43,15 @@ export function createApp() {
     });
   });
 
-  // Modules (Hexagonal Architecture / Repository Pattern)
+  // Modules (Hexagonal Architecture / Repository Pattern - 100% Prisma/MySQL)
+  const professorRouter = createProfessorRouter();
+  app.use('/api/v1/auth', professorRouter);
+  app.use('/api/v1/professores', professorRouter);
   app.use('/api/v1/settings', createSettingsRouter());
   app.use('/api/v1/students', createStudentRouter());
   app.use('/api/v1/alunos', createStudentRouter()); // Alias em português
   app.use('/api/v1/questions', createQuestionRouter());
   app.use('/api/v1/questoes', createQuestionRouter()); // Alias em português
-  app.use('/api/v1/professores', createProfessorRouter());
   app.use('/api/v1/disciplinas', createDisciplinaRouter());
   app.use('/api/v1/turmas', createTurmaRouter());
   app.use('/api/v1/exams', createExamRouter());

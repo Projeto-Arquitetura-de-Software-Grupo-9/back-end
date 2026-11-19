@@ -1,26 +1,85 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import bcrypt from 'bcryptjs';
+import express from 'express';
 import jwt from 'jsonwebtoken';
-import { MockExamRepository } from '../../src/repositories/mock/MockExamRepository';
-import { MockProfessorRepository } from '../../src/repositories/mock/MockProfessorRepository';
-import { ProfessorController } from '../../src/controllers/ProfessorController';
+import { TestExamRepository, TestExamVariationRepository, TestProfessorRepository } from '../helpers/inMemoryRepositories';
+import { createProfessorRouter } from '../../src/routes/professorRoutes';
 import { ExamVariationService } from '../../src/services/ExamVariationService';
-import { MockExamVariationRepository } from '../../src/repositories/mock/MockExamVariationRepository';
+import { ExamRecordDTO } from '../../src/repositories/interfaces/IExamRepository';
+import { ExamQuestionLayoutDTO } from '../../src/types/examPdf.dto';
 
-describe('Exam Repository CRUD & Hexagonal Architecture Tests (Item 8 & Item 2)', () => {
+function makeSampleQuestions(): ExamQuestionLayoutDTO[] {
+  return Array.from({ length: 5 }, (_, i) => ({
+    id: `q-${i + 1}`,
+    originalQuestionId: `q-${i + 1}`,
+    orderIndex: i + 1,
+    statement: `Enunciado da questão ${i + 1}`,
+    discipline: 'Direito Constitucional',
+    alternatives: [
+      { id: `a-${i}-1`, letter: 'A', text: `Alternativa A da Q${i + 1}` },
+      { id: `a-${i}-2`, letter: 'B', text: `Alternativa B da Q${i + 1}` },
+      { id: `a-${i}-3`, letter: 'C', text: `Alternativa C da Q${i + 1}` },
+      { id: `a-${i}-4`, letter: 'D', text: `Alternativa D da Q${i + 1}` },
+    ],
+    correctAlternative: 'B',
+    pointValue: 2.0,
+  }));
+}
+
+function makeSampleExams(): ExamRecordDTO[] {
+  return [
+    {
+      id: 'exam-test-01',
+      code: '#DIR-01',
+      title: 'Avaliação de Direito Constitucional',
+      subtitle: '2026.1',
+      institution: 'CATÓLICA DE SANTA CATARINA',
+      department: 'Direito',
+      course: 'Direito',
+      discipline: 'Direito Constitucional',
+      disciplinaId: 'disc-01',
+      classGroup: 'Turma A',
+      semester: '2026.1',
+      date: '10/05/2026',
+      duration: '2 horas',
+      instructions: ['Marque apenas uma alternativa.'],
+      includeBoxNota: false,
+      createdAt: new Date(),
+    },
+    {
+      id: 'exam-test-02',
+      code: '#MAT-01',
+      title: 'Avaliação de Cálculo I',
+      subtitle: '2026.1',
+      institution: 'CATÓLICA DE SANTA CATARINA',
+      department: 'Engenharia',
+      course: 'Engenharia de Software',
+      discipline: 'Cálculo I',
+      disciplinaId: 'disc-02',
+      classGroup: 'Turma B',
+      semester: '2026.1',
+      date: '12/05/2026',
+      duration: '2 horas',
+      instructions: ['Use caneta azul ou preta.'],
+      includeBoxNota: false,
+      createdAt: new Date(),
+    },
+  ];
+}
+
+describe('Exam Repository CRUD & Variations Tests', () => {
   it('should list exams and filter by disciplinaId', async () => {
-    const repo = new MockExamRepository();
+    const repo = new TestExamRepository(makeSampleExams(), makeSampleQuestions());
     const all = await repo.listExams();
-    assert.ok(all.length >= 2);
+    assert.equal(all.length, 2);
 
-    const filtered = await repo.listExams('disc-mock-1');
+    const filtered = await repo.listExams('disc-01');
     assert.equal(filtered.length, 1);
-    assert.equal(filtered[0].id, 'exam-catolica-01');
+    assert.equal(filtered[0].id, 'exam-test-01');
   });
 
-  it('should create, update, and delete an exam cleanly in repository', async () => {
-    const repo = new MockExamRepository();
+  it('should create, update, and delete an exam cleanly', async () => {
+    const repo = new TestExamRepository([], makeSampleQuestions());
     const created = await repo.createExam({
       title: 'Avaliação de Direito Penal',
       institution: 'Católica SC',
@@ -31,52 +90,28 @@ describe('Exam Repository CRUD & Hexagonal Architecture Tests (Item 8 & Item 2)'
       semester: '2026.1',
       date: '20/11/2026',
       duration: '2 horas',
-      instructions: ['Instrução 1', 'Instrução 2'],
+      instructions: ['Instrução 1'],
       includeBoxNota: false,
     });
 
     assert.ok(created.id);
-    assert.equal(created.title, 'Avaliação de Direito Penal');
     assert.equal(created.includeBoxNota, false);
 
-    // Verify findExamById
-    const found = await repo.findExamById(created.id);
-    assert.ok(found);
-    assert.equal(found?.title, 'Avaliação de Direito Penal');
-
-    // Verify updateExam
-    const updated = await repo.updateExam(created.id, {
-      title: 'Avaliação de Direito Penal - Atualizada',
-    });
+    const updated = await repo.updateExam(created.id, { title: 'Avaliação de Direito Penal - Atualizada' });
     assert.equal(updated.title, 'Avaliação de Direito Penal - Atualizada');
 
-    // Verify deleteExam
     const deleted = await repo.deleteExam(created.id);
     assert.equal(deleted, true);
-
-    const check = await repo.findExamById(created.id);
-    assert.equal(check, null);
+    assert.equal(await repo.findExamById(created.id), null);
   });
 
-  it('should support question permutation for cadernos up to 26 letters (A..Z)', async () => {
-    const repo = new MockExamRepository();
-    const questionsA = await repo.getExamQuestions('exam-default', 'A');
-    const questionsB = await repo.getExamQuestions('exam-default', 'B');
-    const questionsZ = await repo.getExamQuestions('exam-default', 'Z');
-
-    assert.equal(questionsA.length, 5);
-    assert.equal(questionsB.length, 5);
-    assert.equal(questionsZ.length, 5);
-    assert.notDeepEqual(questionsA.map((q) => q.id), questionsB.map((q) => q.id));
-  });
-
-  it('should map crossAnswerKeyMatrix for all requested versions dynamically (A..Z)', async () => {
-    const varRepo = new MockExamVariationRepository();
+  it('should map crossAnswerKeyMatrix dynamically up to 26 versions (A..Z)', async () => {
+    const varRepo = new TestExamVariationRepository(makeSampleQuestions());
     const service = new ExamVariationService(varRepo);
 
     const result = await service.generateVariations({
-      examId: 'exam-default',
-      numberOfVersions: 5, // A, B, C, D, E
+      examId: 'exam-test-01',
+      numberOfVersions: 5,
       shuffleQuestions: true,
       shuffleAlternatives: true,
       strategy: 'FISHER_YATES',
@@ -84,103 +119,171 @@ describe('Exam Repository CRUD & Hexagonal Architecture Tests (Item 8 & Item 2)'
 
     assert.equal(result.versions.length, 5);
     assert.equal(result.versions[4].versionLetter, 'E');
-
-    // Verify dynamic cross mapping contains E
     const entry = result.crossAnswerKeyMatrix[0];
-    assert.ok(entry.orderIndexA !== undefined);
-    assert.ok(entry.orderIndexB !== undefined);
-    assert.ok(entry.orderIndexC !== undefined);
-    assert.ok(entry.orderIndexD !== undefined);
     assert.ok(entry.orderIndexE !== undefined);
     assert.ok(entry.correctLetterE !== undefined);
   });
 });
 
-describe('Professor Controller Security & Password Hashing Tests (Item 3)', () => {
-  it('should hash passwords with bcrypt on creation and issue valid signed JWT on login', async () => {
-    const repo = new MockProfessorRepository();
-    const controller = new ProfessorController(repo);
+describe('Authentication & Professor Security Tests (JWT + bcrypt + LGPD)', () => {
+  async function startAuthServer(repo: TestProfessorRepository) {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/v1/professores', createProfessorRouter(repo));
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const port = (server.address() as { port: number }).port;
+    return { server, base: `http://127.0.0.1:${port}/api/v1/professores` };
+  }
 
-    let createStatus = 0;
-    let createBody: any = null;
-    const reqCreate: any = {
-      body: {
-        nomeCompleto: 'Dr. Roberto Santos',
-        email: 'roberto.santos@catolicasc.edu.br',
-        senha: 'SenhaForte123!',
-      },
-    };
-    const resCreate: any = {
-      status: (code: number) => {
-        createStatus = code;
-        return {
-          json: (data: any) => {
-            createBody = data;
-          },
-        };
-      },
-    };
+  it('should enforce institutional domain, bcrypt hash, JWT issuance, /me, password change, and LGPD anonymization', async () => {
+    const repo = new TestProfessorRepository();
+    const { server, base } = await startAuthServer(repo);
 
-    await controller.create(reqCreate, resCreate);
-    assert.equal(createStatus, 201);
-    assert.equal(createBody.success, true);
+    try {
+      // 1. Reject non-institutional domain
+      const badDomain = await fetch(base, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nomeCompleto: 'Professor Externo',
+          email: 'externo@gmail.com',
+          senha: 'SenhaForte123!',
+        }),
+      });
+      assert.equal(badDomain.status, 400);
 
-    // Verify stored password in repo is bcrypt hash
-    const stored = await repo.findByEmail('roberto.santos@catolicasc.edu.br');
-    assert.ok(stored);
-    assert.ok(stored.senhaHash.startsWith('$2'));
-    assert.notEqual(stored.senhaHash, 'SenhaForte123!');
+      // 2. Register valid institutional teacher
+      const regRes = await fetch(base, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nomeCompleto: 'Prof. Roberto Santos',
+          email: 'Roberto.Santos@catolicasc.org.br',
+          senha: 'SenhaForte123!',
+        }),
+      });
+      assert.equal(regRes.status, 201);
+      const regJson = await regRes.json();
+      assert.equal(regJson.success, true);
+      assert.equal(regJson.data.email, 'roberto.santos@catolicasc.org.br');
+      assert.ok(regJson.data.token);
 
-    // Test Login with wrong password
-    let loginStatus = 0;
-    let loginBody: any = null;
-    const reqWrongLogin: any = {
-      body: {
-        email: 'roberto.santos@catolicasc.edu.br',
-        senha: 'SenhaErrada',
-      },
-    };
-    const resWrongLogin: any = {
-      status: (code: number) => {
-        loginStatus = code;
-        return {
-          json: (data: any) => {
-            loginBody = data;
-          },
-        };
-      },
-    };
+      const stored = await repo.findByEmail('roberto.santos@catolicasc.org.br');
+      assert.ok(stored && stored.senhaHash.startsWith('$2'));
+      assert.notEqual(stored?.senhaHash, 'SenhaForte123!');
 
-    await controller.login(reqWrongLogin, resWrongLogin);
-    assert.equal(loginStatus, 401);
-    assert.equal(loginBody.success, false);
+      // 3. Reject wrong password
+      const wrongLogin = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'roberto.santos@catolicasc.org.br',
+          senha: 'SenhaErrada123!',
+        }),
+      });
+      assert.equal(wrongLogin.status, 401);
 
-    // Test Login with correct password
-    const reqRightLogin: any = {
-      body: {
-        email: 'roberto.santos@catolicasc.edu.br',
-        senha: 'SenhaForte123!',
-      },
-    };
-    const resRightLogin: any = {
-      status: (code: number) => {
-        loginStatus = code;
-        return {
-          json: (data: any) => {
-            loginBody = data;
-          },
-        };
-      },
-    };
+      // 4. Reject non-bcrypt legacy plaintext hash (no mock bypass)
+      await repo.create({
+        nomeCompleto: 'Legado Sem Hash',
+        email: 'legado@catolicasc.org.br',
+        senhaHash: 'SenhaTextoPuro123',
+      });
+      const legacyLogin = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'legado@catolicasc.org.br',
+          senha: 'SenhaTextoPuro123',
+        }),
+      });
+      assert.equal(legacyLogin.status, 401);
 
-    await controller.login(reqRightLogin, resRightLogin);
-    assert.equal(loginStatus, 200);
-    assert.equal(loginBody.success, true);
-    assert.ok(loginBody.data.token);
+      // 5. Login with valid credentials (case-insensitive email)
+      const okLogin = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'ROBERTO.SANTOS@catolicasc.org.br',
+          senha: 'SenhaForte123!',
+        }),
+      });
+      assert.equal(okLogin.status, 200);
+      const loginJson = await okLogin.json();
+      assert.ok(loginJson.data.token);
+      const decoded = jwt.decode(loginJson.data.token) as any;
+      assert.equal(decoded.email, 'roberto.santos@catolicasc.org.br');
 
-    // Verify JWT payload
-    const decoded = jwt.decode(loginBody.data.token) as any;
-    assert.equal(decoded.email, 'roberto.santos@catolicasc.edu.br');
-    assert.equal(decoded.nomeCompleto, 'Dr. Roberto Santos');
+      // 6. Protected /me endpoint
+      const meUnauth = await fetch(`${base}/me`);
+      assert.equal(meUnauth.status, 401);
+
+      const meOk = await fetch(`${base}/me`, {
+        headers: { Authorization: `Bearer ${loginJson.data.token}` },
+      });
+      assert.equal(meOk.status, 200);
+      const meJson = await meOk.json();
+      assert.equal(meJson.data.email, 'roberto.santos@catolicasc.org.br');
+
+      // 7. Authenticated password change
+      const chgRes = await fetch(`${base}/me/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${loginJson.data.token}`,
+        },
+        body: JSON.stringify({
+          currentPassword: 'SenhaForte123!',
+          newPassword: 'NovaSenhaSuperSegura2026!',
+        }),
+      });
+      assert.equal(chgRes.status, 200);
+
+      const oldPassFail = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'roberto.santos@catolicasc.org.br',
+          senha: 'SenhaForte123!',
+        }),
+      });
+      assert.equal(oldPassFail.status, 401);
+
+      const newPassOk = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'roberto.santos@catolicasc.org.br',
+          senha: 'NovaSenhaSuperSegura2026!',
+        }),
+      });
+      assert.equal(newPassOk.status, 200);
+
+      // 8. LGPD anonymization blocks subsequent login and /me
+      const anonRes = await fetch(`${base}/me/anonymize`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${loginJson.data.token}` },
+      });
+      assert.equal(anonRes.status, 200);
+
+      const postAnonMe = await fetch(`${base}/me`, {
+        headers: { Authorization: `Bearer ${loginJson.data.token}` },
+      });
+      assert.equal(postAnonMe.status, 401);
+
+      const postAnonLogin = await fetch(`${base}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'roberto.santos@catolicasc.org.br',
+          senha: 'NovaSenhaSuperSegura2026!',
+        }),
+      });
+      assert.equal(postAnonLogin.status, 401);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

@@ -5,6 +5,8 @@ declare module 'express' {
     params: Record<string, string>;
     query: Record<string, string | string[] | undefined>;
     headers: Record<string, string | undefined>;
+    ip?: string;
+    socket?: { remoteAddress?: string };
   }
 
   export interface Response {
@@ -14,7 +16,8 @@ declare module 'express' {
     setHeader(name: string, value: string): this;
   }
 
-  export type RequestHandler = (req: Request, res: Response, next?: () => void) => any;
+  export type NextFunction = (err?: any) => void;
+  export type RequestHandler = (req: Request, res: Response, next?: NextFunction) => any;
 
   export interface RouterInstance {
     get(path: string, ...handlers: RequestHandler[]): this;

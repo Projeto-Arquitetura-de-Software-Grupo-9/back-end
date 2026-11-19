@@ -230,9 +230,14 @@ export class PrismaQuestionRepository implements IQuestionRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const existing = await prisma.question.findUnique({ where: { id } });
+    const existing = await prisma.question.findFirst({
+      where: { id, deletedAt: null },
+    });
     if (!existing) return false;
-    await prisma.question.delete({ where: { id } });
+    await prisma.question.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     return true;
   }
 
